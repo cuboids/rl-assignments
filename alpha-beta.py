@@ -1,6 +1,3 @@
-import re
-
-
 def make_grid(nrow=11, ncol=None):
     """Prints hexagonal grid of size nrow * ncol"""
     
