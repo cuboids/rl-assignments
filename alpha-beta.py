@@ -10,3 +10,6 @@ def make_grid(nrow=11, ncol=None):
     for i in range(-7, 3 * nrow - 1, 3):
         print(max(0, i) * "" + row[max(0, -i):min(-2, 3 * nrow - 11 - i)])
         row = (ncol + 1) * " \__/ "
+
+
+make_grid()
