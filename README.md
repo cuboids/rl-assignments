@@ -1,2 +1,2 @@
-# rl-case-study
-Case study for Reinforcement Learning
+# rl-assignments
+Assignments for Reinforcement Learning
