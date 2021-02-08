@@ -2,7 +2,7 @@ import re
 
 
 def make_grid(nrow=11, ncol=None):
-    """Prints hexagonal grid of dimensions nrow * ncol"""
+    """Prints hexagonal grid of size nrow * ncol"""
     
     if ncol is None:
         ncol = nrow
