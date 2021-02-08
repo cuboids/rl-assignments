@@ -6,7 +6,7 @@ def make_grid(nrow=11, ncol=None):
     
     if ncol is None:
         ncol = nrow
-    elif not ncol or not nrow:
+    elif min(ncol, nrow) < 1:
         ncol = nrow = 0
 
     row = (ncol + 1) * "  __  "
