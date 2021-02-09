@@ -18,7 +18,7 @@ def make_grid(nrow=11, ncol=None):
     
     if ncol is None:
         ncol = nrow
-    elif min(ncol, nrow) < 1:
+    elif min(ncol, nrow) < 2:
         return
 
     mer = "__/  \\"
