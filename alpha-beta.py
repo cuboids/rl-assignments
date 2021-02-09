@@ -61,4 +61,17 @@ def make_grid(nrow=11, ncol=None):
     return MAP
 
 
-[print(row) for row in make_grid()]
+try:
+    ncol = int(input("Please specify the number of columns (>= 2): "))
+except ValueError:
+    print("Invalid input. The number of columns has been set to 11")
+    ncol = 11
+try:
+    nrow = int(input("Please specify the number of rows (>= 2): "))
+except ValueError:
+    print(f"Invalid input. The number of rows has been set to {ncol}")
+    nrow = ncol
+try:
+    [print(i) for i in make_map(nrow, ncol)]
+except TypeError:
+    pass
