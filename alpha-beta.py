@@ -13,7 +13,7 @@ class col:
     ENDCU = ENDC + ENDU
 
 
-def make_grid(nrow=11, ncol=None):
+def make_map(nrow=11, ncol=None):
     """Prints hexagonal grid of size nrow * ncol"""
     
     if ncol is None:
