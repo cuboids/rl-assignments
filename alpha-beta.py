@@ -1,4 +1,5 @@
-# error in assertion (unsolved)
+
+# questions about building the board
 
 import numpy as np
 from hex_skeleton import HexBoard
@@ -38,8 +39,10 @@ while True:
      board.print()
 
 
-     assert(board.check_win(player1) == True)
-     assert(board.check_win(player2) == False)
+     assert(board.check_win(player1) == True) # error in assertion (unsolved)
+
+     assert(board.check_win(player2) == False) # error in assertion (unsolved)
+
      board.print()
 
         
