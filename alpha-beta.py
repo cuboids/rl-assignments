@@ -56,12 +56,10 @@ player1 = HexBoard.RED # player 1 is computer with red pieces and it is randomly
 player2 = HexBoard.BLUE # player 2 is us with blue pieces and it is randomly put pieces 
 board = HexBoard(k)
 
-def random_list():
-    a = np.random.randint(k)
-    b = np.random.randint(k)
-    return([a,b])
 
-samplespace = list(product([i for i in range(k)],[i for i in range(k)])) 
+
+
+samplespace = list(product([i for i in range(k)],[i for i in range(k)]))  # sample space for all pieces
 
 
 player1_coordinate = [] # player 1 is computer with red pieces and it is randomly put pieces 
@@ -71,7 +69,7 @@ player2_coordinate = [] # player 2 is us with blue pieces and it is randomly put
 
 while True:   
     
-     one_trial = random.choice(samplespace)
+     one_trial = random.choice(samplespace)  # randomly drow 1 peice
      player1_coordinate.append(one_trial)
      samplespace.remove(one_trial)
      board.place(one_trial, player1)
