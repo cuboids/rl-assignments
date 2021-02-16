@@ -12,8 +12,8 @@ All game results is stored in dict games_result.
 Data stored: endstate, winner, turns, elapsed_time
 To access individual game e.g. games_result['games']['11']
 
-Q: How to change player decison?
-A: Change the value assigned to move.
+Q: How to change each player's decison?
+A: Change the value assigned to 'move' correspondingly.
 There are several options (random move, manual move, minimax).
 But user has to modify corresponding code.
 
