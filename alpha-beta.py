@@ -2,16 +2,18 @@
   ## Evalue function based on Dijkstra's algorithm
 
 
-def Dijkstra(graph,start,color,size_board):
-    # the Dijkstra function here is part of the evalue function, the purpose for the function is to find(cont.)
-    # (cont.)the shortes distance to every node when given a start
+def Dijkstra(board,graph,start,player):
+    # parameter
+    # board is HexBoard object
     # graph is the node map(see evalue function for explannation)
     # start is a coordinate of piece(tuple)
-    # size_board is the arg in the HexBoard(.)
-    graph = { key : value for (key, value) in graph.items()} # creat a new dic to avoid the old one be replaced
+    # player is either HexBoard.BLUE(==1) or HexBoard.RED(==2)
+    graph = { key : value for (key, value) in graph.items()} # creat a new dic to avoid the orignal one be replaced
     shortest_distance = {}   # this is inspired by one youtbuer in the following 16 line of codes(start)
     unseenNodes = graph
     inf = 5000
+    size_board = board.size
+   
     for node in unseenNodes:
         shortest_distance[node] = inf
     shortest_distance[start] = 0
@@ -29,9 +31,8 @@ def Dijkstra(graph,start,color,size_board):
 
         unseenNodes.pop(minNode) # this is inspired by one youtbuer above the 16 codes(end)
     
-    
     # In the below, all codes is to identify the smallest distnace for red/blue pieces to the two side border
-    if color == HexBoard.RED: #red is vertical
+    if player == HexBoard.RED: #red is vertical
         edgeupper1 = []
         edgelower2 = []
 
@@ -59,15 +60,17 @@ def Dijkstra(graph,start,color,size_board):
             target_lower = shortest_distance[candidate2]
     return target_lower + target_upper
 
-def evalue_fun(size_board,player,redcoordinate,bluecoordinate):
+def evalue_fun(board,player):
 
 # parameter
-# redcoordinate is a list with all coordinates of red pieces have been put on the board
-# bluecoordinate is a list with all coordinates of blue pieces have been put on the board
+# board is HexBoard object
 # size_board is a int and should be the same as HexBoard(.)
     from itertools import product
+    size_board = board.size
 
     samplespace = list(product([i for i in range(size_board)],[i for i in range(size_board)])) 
+    redcoordinate = [k for k, v in board.board.items() if v == 2]
+    bluecoordinate = [k for k, v in board.board.items() if v == 1]
 
 
 #the node map, by default the distance between one piece and its neighbor is one
@@ -111,12 +114,11 @@ def evalue_fun(size_board,player,redcoordinate,bluecoordinate):
 # heuristic_score = remaining_blue_hexes-remaining_red_hexes
     red_distance_from_win = []
     blue_distance_from_win = []
-
     for a_coordinate in redcoordinate:
-        value = Dijkstra(top_level_map_red,a_coordinate,HexBoard.RED,size_board)
+        value = Dijkstra(board,top_level_map_red,a_coordinate,player = HexBoard.RED)
         red_distance_from_win.append(value)
     for a_coordinate in bluecoordinate:
-        value = Dijkstra(top_level_map_blue,a_coordinate,HexBoard.BLUE,size_board)
+        value = Dijkstra(board,top_level_map_blue,a_coordinate,player = HexBoard.BLUE)
         blue_distance_from_win.append(value)
     
 
@@ -128,49 +130,51 @@ def evalue_fun(size_board,player,redcoordinate,bluecoordinate):
         return -heuristic_score
 
 
-
-    
-    
-# Below is the test of the evalue fuction 
+      
 import numpy as np
 from hex_skeleton import HexBoard
 
-redcoordinate = []
-bluecoordinate =[]
+
 
 # we create a state in the below
 winner = HexBoard.RED 
 loser = HexBoard.BLUE 
-size_board = 7
-board = HexBoard(size_board)
+board = HexBoard(7)
 
 board.place((1,1), loser)
-bluecoordinate.append((1,1))
 
 board.place((2,1), loser)
-bluecoordinate.append((2,1))
 
 board.place((4,1), loser)
-bluecoordinate.append((4,1))
 
 
 board.place((0,1), winner)
-redcoordinate.append((0,1))
 
 board.place((0,2), winner)
-redcoordinate.append((0,2))
-
-
 
 
 board.place((0,0), winner)
-redcoordinate.append((0,0))
 
 for i in range(2,5):
     board.place((1,i), winner)
-    redcoordinate.append((1,i))
+    
+for i in range(3):
+    board.place((i,6), loser)
 board.print()
 # a state in the above
+
+
+
+
+
+
+top_level_map_red = {} # the node map from red perspecitve
+second_level_map_red = {}
+
+
+
+print("the value in the pespective of red is ",evalue_fun(board,winner))
+print("the value in the pespective of blue is ",evalue_fun(board,loser))
 
 
                 
