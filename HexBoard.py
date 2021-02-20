@@ -1,4 +1,40 @@
 # Hex board skeleton + .get_allempty()
+import names  # For giving random names to agents. See https://pypi.org/project/names/
+from trueskill import Rating, rate_1vs1
+
+
+class Agent:
+    def __init__(self, name=None, depth=3, eval="random"):
+        """Sets up the agent.
+
+        Args:
+            depth: an integer representing the eval depth
+            eval: a string with the evaluation method.
+              Currently supports "random", "human", and "dijkstra"
+        """
+        if name is None:
+            self.name = names.get_first_name()
+        else:
+            self.name = name
+        self.depth = depth
+        self.eval = eval
+        self.rating = Rating()
+        self.rating_history = [self.rating]
+
+    def rate_1vs1(self, opponent, opponent_won=False):
+        """Updates the rating of agent and opponent after playing a 1vs1
+
+        Args:
+            opponent: another agent
+            opponent_won: boolean indicating if the opponent won.
+        """
+        rating2 = opponent.rating
+        if not opponent_won:
+            self.rating, opponent.rating = rate_1vs1(self.rating, rating2)
+        else:
+            self.rating, opponent.rating = rate_1vs1(rating2, self.rating)
+        self.rating_history.append(self.rating)
+
 
 class HexBoard:
     BLUE = 1  # value take up by a position
@@ -51,20 +87,31 @@ class HexBoard:
 
     def get_neighbors(self, coordinates):
         """Return a list of valid neighbor coordinates from a position"""
-        (cx, cy) = coordinates
+
         neighbors = []
-        if cx - 1 >= 0:
-            neighbors.append((cx - 1, cy))
-        if cx + 1 < self.size:
-            neighbors.append((cx + 1, cy))
-        if cx - 1 >= 0 and cy + 1 <= self.size - 1:
-            neighbors.append((cx - 1, cy + 1))
-        if cx + 1 < self.size and cy - 1 >= 0:
-            neighbors.append((cx + 1, cy - 1))
-        if cy + 1 < self.size:
-            neighbors.append((cx, cy + 1))
-        if cy - 1 >= 0:
-            neighbors.append((cx, cy-1))
+        # Add four hexes outside the board for the Dijkstra algorithm.
+        if coordinates == "Left":
+            neighbors.extend([(0, cy) for cy in range(self.size)])
+        elif coordinates == "Top":
+            neighbors.extend([(cx, 0) for cx in range(self.size)])
+        elif coordinates == "Right":
+            neighbors.extend([(self.size, cy) for cy in range(self.size)])
+        elif coordinates == "Down":
+            neighbors.extend([cx, self.size] for cx in range(self.size))
+        else:
+            (cx, cy) = coordinates
+            if cx - 1 >= 0:
+                neighbors.append((cx - 1, cy))
+            if cx + 1 < self.size:
+                neighbors.append((cx + 1, cy))
+            if cx - 1 >= 0 and cy + 1 <= self.size - 1:
+                neighbors.append((cx - 1, cy + 1))
+            if cx + 1 < self.size and cy - 1 >= 0:
+                neighbors.append((cx + 1, cy - 1))
+            if cy + 1 < self.size:
+                neighbors.append((cx, cy + 1))
+            if cy - 1 >= 0:
+                neighbors.append((cx, cy-1))
         return neighbors
 
     def border(self, color, move):

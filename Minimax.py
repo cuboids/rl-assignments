@@ -13,7 +13,7 @@ def minimax(board, depth, ntype, p):
         depth (int): depth limit of search tree, if depth exceeds empty positions, it will be reduced
         ntype (str): node type, etiher 'MAX' or 'MIN'
         p (int): perspective/player of search tree root, either 1 for HexBoard.BLUE, or 2 for HexBoard.RED
-    Ouputs: 
+    Outputs:
         node (dict): {'state', 'depth', 'children', 'type', 'score', 'move'}
     Further improvements:
         search statistics: nodes searched + cutoffs
