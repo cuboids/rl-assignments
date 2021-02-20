@@ -5,7 +5,7 @@ import copy
 import random
 
 
-def alphabeta(board, depth, ntype, p, a, b):
+def alphabeta(board, depth, ntype, p, a=-np.inf, b=np.inf):
     """
     Alpha-Beta search algorithm
     Parameters: 
