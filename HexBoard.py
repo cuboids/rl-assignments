@@ -125,3 +125,11 @@ class HexBoard:
     def get_allempty(self):
         """Return a list of empty positions in current board, same as movelist."""
         return [k for k, v in self.board.items() if v == 3]  # 3 = EMPTY
+
+    def convert_key(self):
+        """Return a key (str) that represent board positions, unique"""
+        key = "" # initiate
+        for y in range(self.size):
+            for x in range(self.size):
+                key += str(self.board[x, y])  # read piece state {1/2/3}
+        return key
