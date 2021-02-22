@@ -1,9 +1,10 @@
 import time
 import numpy as np
+from alphabeta_noprint import alphabeta
 from ttalphabeta import ttalphabeta
 from transpositiontable import TranspositionTable
 
-def iterativedeepening(board, timelimit, ntype, p, a=-np.inf, b=np.inf):
+def iterativedeepening(board, timelimit, p):
     """
     Calls alpha-beta iteratively, starts at shallow depth and increase depth iteratively
     The function will terminate on following conditions:
@@ -11,10 +12,7 @@ def iterativedeepening(board, timelimit, ntype, p, a=-np.inf, b=np.inf):
     Parameters: 
         board (HexBoard object):
         timelimit (int): search time limit in seconds. SUGGEST testing with timelimit from 1 first
-        ntype (str): carry to alphabeta(), refer to alphabeta() docstring
         p (int): carry to alphabeta(), refer to alphabeta() docstring
-        a (float): carry to alphabeta(), refer to alphabeta() docstring
-        b (float): carry to alphabeta(), refer to alphabeta() docstring
     Ouput: 
         node (dict): {'state', 'depth', 'children', 'type', 'score', 'move'}
     """
@@ -28,9 +26,9 @@ def iterativedeepening(board, timelimit, ntype, p, a=-np.inf, b=np.inf):
         while True:
             print(f'[Iteration status] Start iteration at depth {depth} \n')
             # Option: alpha-beta + TT
-            (result_node, tt) = ttalphabeta(board=board, depth=depth, ntype=ntype, p=p, a=a, b=b, tt=tt)  # Use TT from previous search to improve efficiency
+            (result_node, tt) = ttalphabeta(board=board, depth=depth, p=p, tt=tt)  # Use TT from previous search to improve efficiency
             # Alternative option: alpha-beta
-            #n = alphabeta(board, depth, ntype, p, a, b)
+            #n = alphabeta(board, depth, p)
             print(f'[Iteration status] Finish iteration at depth {depth}:', end=" ")
             print(f'Best move at root node = {result_node["move"]} \n')
             if time.time() > timeout:  # WARNING This method is not perfect and only breaks after search completed, may change to raise + class Exception for instant interrupt
