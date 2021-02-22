@@ -3,16 +3,17 @@
 import numpy as np
 import copy
 import random
+from chooseEval import evaluateScore
 
 
-def alphabeta(board, depth, ntype, p, a=-np.inf, b=np.inf):
+def alphabeta(board, depth, p, ntype='MAX', a=-np.inf, b=np.inf):
     """
     Alpha-Beta search algorithm
     Parameters: 
         board (HexBoard object): 
         depth (int): depth limit of search tree, if depth exceeds empty positions, it will be reduced
-        ntype (str): node type, etiher 'MAX' or 'MIN'
         p (int): perspective/player of search tree root, either 1 for HexBoard.BLUE, or 2 for HexBoard.RED
+        ntype (str): node type, etiher 'MAX' or 'MIN'
         a (float): alpha value, first input should be -np.inf or very small value, increase upon recursion
         b (float): beta value, first input should be np.inf or very large value, decrease upon recursion
     Ouputs: 
@@ -46,17 +47,15 @@ def alphabeta(board, depth, ntype, p, a=-np.inf, b=np.inf):
     
     # Main loop
     if n['state'].is_game_over():  # Case: gameover at depth >= 0 (do we need to give bonus or penalty to score?)
-        n['type'] = 'LEAF_ENDGAME'
-        n['score'] = random.sample(range(0, 10), 1)[0]
-        # n['score'] = eval(n['state'])
-        #print(' Leaf SCORE (ENDGAME) =', n['score'], '\n')
+        n['type'] = 'LEAF'
+        n['score'] = evaluateScore(n['state'], 'random')
+        #print(' Leaf SCORE (LEAF) =', n['score'], '\n')
         return n
     
     elif depth == 0:  # Case: reaching the search tree depth limit
-        n['type'] = 'LEAF_HEURISTIC'
-        n['score'] = random.sample(range(0, 10), 1)[0]
-        # n['score'] = eval(n['state'])
-        #print(' Leaf SCORE (HEURISTIC) =', n['score'], '\n')
+        n['type'] = 'DEPTH==0'
+        n['score'] = evaluateScore(n['state'], 'random')
+        #print(' Leaf SCORE (DEPTH==0) =', n['score'], '\n')
         return n
     
     elif n['type'] == 'MAX':  # Max node
@@ -73,7 +72,7 @@ def alphabeta(board, depth, ntype, p, a=-np.inf, b=np.inf):
             #new_state.print()  # Eyetest child state
             new_p = [1, 2]
             new_p.remove(p)  # Reverse persective for child node
-            child_n = alphabeta(new_state, n['depth'] - 1, 'MIN', new_p[0], a, b)  # Generate child node
+            child_n = alphabeta(new_state, n['depth'] - 1, new_p[0], 'MIN', a, b)  # Generate child node
             n['children'].update({str(child_move): child_n})  # Store children node
             if child_n['score'] > g_max:  # Update current node to back up from the maximum child node
                 g_max = child_n['score']
@@ -101,7 +100,7 @@ def alphabeta(board, depth, ntype, p, a=-np.inf, b=np.inf):
             #new_state.print()
             new_p = [1, 2]
             new_p.remove(p)  # Reverse persective for child node
-            child_n = alphabeta(new_state, n['depth'] - 1, 'MAX', new_p[0], a, b)
+            child_n = alphabeta(new_state, n['depth'] - 1, new_p[0], 'MAX', a, b)
             n['children'].update({str(child_move): child_n})  # Store children node
             if child_n['score'] < g_min:  # Update current node to back up from the minimum child node
                 g_min = child_n['score']
