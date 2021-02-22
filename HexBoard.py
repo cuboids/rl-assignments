@@ -117,7 +117,7 @@ class HexBoard:
     def border(self, color, move):
         """Check if a move is the right color reaching the right border, blue1-x, red2-y"""
         (nx, ny) = move
-        return (color == HexBoard.BLUE or color == HexBoard.RED) and ny == self.size - 1
+        return (color == HexBoard.BLUE and nx == self.size-1) or (color == HexBoard.RED and ny == self.size-1)
 
     def traverse(self, color, move, visited):
         """Move is the target position"""
