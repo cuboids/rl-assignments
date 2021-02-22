@@ -7,15 +7,15 @@ from chooseEval import evaluateScore
 from transpositiontable import TranspositionTable
 
 
-def ttalphabeta(board, depth, ntype, p, a=-np.inf, b=np.inf, tt=TranspositionTable()):
+def ttalphabeta(board, depth, p, ntype='MAX', a=-np.inf, b=np.inf, tt=TranspositionTable()):
     """
     Alpha-Beta search algorithm, to be used with iterationdeepening() and custom class TranspositionTable.
     All debug printouts suppressed.
     Parameters: 
         board (HexBoard object): 
         depth (int): depth limit of search tree, if depth exceeds empty positions, it will be reduced
-        ntype (str): node type, etiher 'MAX' or 'MIN'
         p (int): perspective/player of search tree root, either 1 for HexBoard.BLUE, or 2 for HexBoard.RED
+        ntype (str): node type, etiher 'MAX' or 'MIN'        
         a (float): alpha value, first input should be -np.inf or very small value, increase upon recursion
         b (float): beta value, first input should be np.inf or very large value, decrease upon recursion
         tt (TranspositionTable obj): initial value at root = {}
@@ -96,7 +96,7 @@ def ttalphabeta(board, depth, ntype, p, a=-np.inf, b=np.inf, tt=TranspositionTab
             #print('\n')
             new_p = [1, 2]
             new_p.remove(p)  # Reverse persective for child node
-            (child_n, tt) = ttalphabeta(new_state, n['depth'] - 1, 'MIN', new_p[0], a, b, tt)  # Search OR evaluate child node, update TT
+            (child_n, tt) = ttalphabeta(new_state, n['depth'] - 1, new_p[0], 'MIN', a, b, tt)  # Search OR evaluate child node, update TT
             n['children'].update({str(child_move): child_n})  # Store children node to current node
             if child_n['score'] > g_max:  # Update current node to backtrack from the maximum child node
                 g_max = child_n['score']  # Update max score
@@ -126,7 +126,7 @@ def ttalphabeta(board, depth, ntype, p, a=-np.inf, b=np.inf, tt=TranspositionTab
             #print('\n')
             new_p = [1, 2]
             new_p.remove(p)
-            (child_n, tt) = ttalphabeta(new_state, n['depth'] - 1, 'MAX', new_p[0], a, b, tt)  # Child of MIN becomes MAX
+            (child_n, tt) = ttalphabeta(new_state, n['depth'] - 1, new_p[0], 'MAX', a, b, tt)  # Child of MIN becomes MAX
             n['children'].update({str(child_move): child_n})
             if child_n['score'] < g_min:  # Update current node to backtrack from the minimum child node
                 g_min = child_n['score']
