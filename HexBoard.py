@@ -4,12 +4,12 @@ from trueskill import Rating, rate_1vs1
 
 
 class Agent:
-    def __init__(self, name=None, depth=3, eval="random", timelimit=2):
+    def __init__(self, name=None, depth=3, searchby="random", timelimit=2):
         """Sets up the agent.
 
         Args:
             depth: an integer representing the search depth
-            eval: a string with the evaluation method.
+            searchby: a string indicating the search method.
               Currently supports "random", "human", "minimax", "alphabeta", "alphabetaIDTT"
             timelimit: an integer representing timelimit for anytime search algorithm, including "alphabetaIDTT"
         """
@@ -19,7 +19,7 @@ class Agent:
             self.name = name
         self.depth = depth
         self.timelimit = timelimit
-        self.eval = eval
+        self.searchby = searchby
         self.rating = Rating()
         self.rating_history = [self.rating]
 
