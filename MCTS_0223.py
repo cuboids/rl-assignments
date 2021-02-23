@@ -130,7 +130,7 @@ class Node:
         a_dic = {}
         nodes_visit_num = []
         self.cp = cp         
-        self.root = self.freddy_get_root_Node()  
+        
         for childnode, nodeobject in self.children.items():
             nodes_visit_num.append(nodeobject.visit_count)
         
@@ -148,16 +148,16 @@ class Node:
                 # the below is to get UTC value
 
                 self.exploitation = nodeobject.value_sum / nodeobject.visit_count
-                self.term = math.log(self.root.visit_count/nodeobject.visit_count)
+                self.term = math.log(nodeobject.parent.visit_count)/nodeobject.visit_count
                 if self.term < 0: #becasue < 0 can not be taken sqrt
                     self.term = 0
                 self.exploration = self.cp * math.sqrt(self.term)
                 a_dic[childnode] = self.exploitation + self.exploration  
-                Bestchild_ID_tuple = max(a_dic, key= a_dic.get)
-                Bestchild = self.children[Bestchild_ID_tuple] # Bestchild is a node object
+            Bestchild_ID_tuple = max(a_dic, key= a_dic.get)
+            Bestchild = self.children[Bestchild_ID_tuple] # Bestchild is a node object
                 # the above is to get UTC value
-                if Bestchild.visit_count != 0:               
-                    return Bestchild.BestUCT_Childnode() 
+            if Bestchild.visit_count != 0:               
+                return Bestchild.BestUCT_Childnode() 
                 
         
     def expand(self): # expand unseennodes 
