@@ -83,6 +83,13 @@ import random
 
 
 
+import math 
+from itertools import permutations
+import copy
+import random
+
+
+
 class Node:
     def __init__(self, board,player, parent = "root has no parent",ID_tuple = ("root",)):
         # board is HexBoard object
@@ -118,7 +125,6 @@ class Node:
         if self.children == {}:
             self.expand()
 
-        # the below is to get UTC value
         a_dic = {}
         nodes_visit_num = []
         self.cp = cp         
@@ -127,18 +133,20 @@ class Node:
             nodes_visit_num.append(nodeobject.visit_count)
         
 
-        if 0 in nodes_visit_num:
+        if 0 in nodes_visit_num: # the node's still have some unseen childnode
             for childnode, nodeobject in self.children.items():
                 if nodeobject.visit_count == 0:
                     nodeobject.rollout()
                     nodeobject.backpropagate()   
-                    return self.children[childnode]
+                    return None#self.children[childnode]
                     break
-        else:
+        elif self.children == {}: # the node does not have child
+            self.backpropagate()
+            return None
+        else: 
             for childnode, nodeobject in self.children.items():
                                 
                 # the below is to get UTC value
-
                 self.exploitation = nodeobject.value_sum / nodeobject.visit_count
                 self.term = math.log(nodeobject.parent.visit_count)/nodeobject.visit_count
                 if self.term < 0: #becasue < 0 can not be taken sqrt
@@ -161,7 +169,7 @@ class Node:
             movingstate.place(a_tuple, player)
             nodes_name = self.ID_tuple + (a_tuple,)
             self.children[nodes_name]= Node(movingstate,player, parent = self,ID_tuple = nodes_name)
-            movingstate = copy.deepcopy(self.state)
+            #movingstate = copy.deepcopy(self.state)
 
             
                         
@@ -245,16 +253,37 @@ class Node:
        # print("The node ",self.ID_tuple,": its parent is ",self.parent )
 
 
-        if self.visit_count == 0:
+        if self.parent == "root has no parent":
+            return None
+        
+        elif self.visit_count == 0:
             self.visit_count =1
             reward = self.value_sum
             self.parent.visit_count += 1
+            self.parent.value_sum += reward
+            self.parent.backpropagate(reward)
+        elif self.children == {} and :
+            self.visit_count +=1
             self.parent.value_sum += reward
             self.parent.backpropagate(reward)
         elif self.parent != "root has no parent":
             self.parent.visit_count += 1
             self.parent.value_sum += reward
             self.parent.backpropagate(reward)
+            
+    
+        
+            
+        
+        
+        
+   
+            
+
+        
+        
+        
+        
             
 
 # the execute function
