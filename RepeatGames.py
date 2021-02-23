@@ -1,5 +1,6 @@
 from search_minimax import minimax
 from search_alphabeta import alphabeta
+from search_alphabeta2 import alphabeta as alphabeta2
 from search_iterativedeepening import iterativedeepening
 import random
 from time import perf_counter
@@ -67,16 +68,19 @@ def play_hex(ngames=1, board_size=11, player1=Agent(name="Alice"), player2=Agent
             # BLUE's turn to move
             if game_i % 2 == turn % 2:  # (odd game AND odd turn) OR (even game AND even turn)
                 if player1.searchby == 'random':
-                    print('r')
+                    print('1-r')
                     move = random.sample(game.get_allempty(), 1)[0]
                 elif player1.searchby == 'minimax':
-                    print('m')
+                    print('1-m')
                     move = minimax(game, player1.depth, 1)['move']
                 elif player1.searchby == 'alphabeta':
-                    print('ab')
+                    print('1-ab')
                     move = alphabeta(game, player1.depth, 1)['move']
+                elif player1.searchby == 'alphabeta2':
+                    print('1-ab2')
+                    move = alphabeta2(game, player1.depth, 1)['move']
                 elif player1.searchby == 'alphabetaIDTT':
-                    print('idtt')
+                    print('1-ab+id+tt')
                     move = iterativedeepening(game, player1.timelimit, 1)['move']
                 elif player1.searchby == 'human':
                     move_x = input('[Player 1] Insert x-coordinate to move?')
@@ -91,12 +95,19 @@ def play_hex(ngames=1, board_size=11, player1=Agent(name="Alice"), player2=Agent
             # RED's turn to move
             else:
                 if player2.searchby == 'random':
+                    print('2-r')
                     move = random.sample(game.get_allempty(), 1)[0]
                 elif player2.searchby == 'minimax':
+                    print('2-m')
                     move = minimax(game, player2.depth, 2)['move']
                 elif player2.searchby == 'alphabeta':
+                    print('2-ab')
                     move = alphabeta(game, player2.depth, 2)['move']
+                elif player2.searchby == 'alphabeta2':
+                    print('2-ab2')
+                    move = alphabeta2(game, player2.depth, 2)['move']
                 elif player2.searchby == 'alphabetaIDTT':
+                    print('2-ab+id+tt')
                     move = iterativedeepening(game, player2.timelimit, 2)['move']
                 elif player2.searchby == 'human':
                     move_x = input('[Player 2] Insert x-coordinate to move: ')
