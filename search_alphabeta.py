@@ -70,9 +70,7 @@ def alphabeta(board, depth, p, ntype='MAX', a=-np.inf, b=np.inf):
             new_state.place(child_move, p)  # Generate child state
             #print(' STATE after move:')
             #new_state.print()  # Eyetest child state
-            new_p = [1, 2]
-            new_p.remove(p)  # Reverse persective for child node
-            child_n = alphabeta(new_state, n['depth'] - 1, new_p[0], 'MIN', a, b)  # Generate child node
+            child_n = alphabeta(new_state, n['depth'] - 1, p, 'MIN', a, b)  # Generate child node
             n['children'].update({str(child_move): child_n})  # Store children node
             if child_n['score'] > g_max:  # Update current node to back up from the maximum child node
                 g_max = child_n['score']
@@ -94,13 +92,13 @@ def alphabeta(board, depth, p, ntype='MAX', a=-np.inf, b=np.inf):
             #print(f'\nFrom DEPTH {n["depth"]} branch --> Child {child_count}: \nPLAYER {p} moves at {child_move}')
             #print(' STATE before move:')
             #n['state'].print()
+            new_p = [1, 2] 
+            new_p.remove(p)  # Reverse persective for child node. For MIN node, its children will be opponent moves.
             new_state = copy.deepcopy(n['state'])
-            new_state.place(child_move, p)  # Generate child state
+            new_state.place(child_move, new_p[0])  # Generate child state
             #print(' STATE after move:')
             #new_state.print()
-            new_p = [1, 2]
-            new_p.remove(p)  # Reverse persective for child node
-            child_n = alphabeta(new_state, n['depth'] - 1, new_p[0], 'MAX', a, b)
+            child_n = alphabeta(new_state, n['depth'] - 1, p, 'MAX', a, b)
             n['children'].update({str(child_move): child_n})  # Store children node
             if child_n['score'] < g_min:  # Update current node to back up from the minimum child node
                 g_min = child_n['score']
