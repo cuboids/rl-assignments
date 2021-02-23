@@ -3,9 +3,10 @@
 import numpy as np
 import copy
 import random
+from chooseEval import evaluateScore
 
 
-def minimax(board, depth, ntype, p):
+def minimax(board, depth, p, ntype='MAX'):
     """
     Minimax function, depth-limited
     Parameters: 
@@ -33,27 +34,25 @@ def minimax(board, depth, ntype, p):
          'type': ntype}
     
     # Print to eyetest
-    print('\nNode DEPTH = {} (TYPE = {})'.format(n['depth'], n['type']))
-    print(' GAME OVER?', n['state'].game_over)
-    if (depth != 0) and not (n['state'].is_game_over()):
-        print(' PLAYER {} to consider EMPTY positions {}'.format(p, movelist))
+    #print('\nNode DEPTH = {} (TYPE = {})'.format(n['depth'], n['type']))
+    #print(' GAME OVER?', n['state'].game_over)
+    #if (depth != 0) and not (n['state'].is_game_over()):
+    #    print(' PLAYER {} to consider EMPTY positions {}'.format(p, movelist))
     
     # Initialize child_count to count children at depth d
     child_count = 0 
     
     # Main loop
     if n['state'].is_game_over():  # Case: gameover at depth >= 0 (do we need to give bonus or penalty to score?)
-        n['type'] = 'LEAF_ENDGAME'
-        n['score'] = random.sample(range(0, 10), 1)[0]
-        # n['score'] = eval(n['state'])
-        print(' Leaf SCORE (ENDGAME) =', n['score'], '\n')
+        n['type'] = 'LEAF'
+        n['score'] = evaluateScore(n['state'], 'dijkstra', p)
+        #print(' Leaf SCORE (LEAF) =', n['score'], '\n')
         return n
     
     elif depth == 0:  # Case: reaching the search tree depth limit
-        n['type'] = 'LEAF_HEURISTIC'
-        n['score'] = random.sample(range(0, 10), 1)[0]
-        # n['score'] = eval(n['state'])
-        print(' Leaf SCORE (HEURISTIC) =', n['score'], '\n')
+        n['type'] = 'DEPTH==0'
+        n['score'] = evaluateScore(n['state'], 'dijkstra', p)
+        #print(' Leaf SCORE (DEPTH==0) =', n['score'], '\n')
         return n
     
     elif n['type'] == 'MAX':  # Max node
@@ -61,46 +60,46 @@ def minimax(board, depth, ntype, p):
         n['score'] = g_max
         for child_move in movelist:  # Search all children and compare score
             child_count += 1
-            print(f'\nFrom DEPTH {n["depth"]} branch --> Child {child_count}: \nPLAYER {p} moves as {child_move}')
-            print(' STATE before move:')
-            n['state'].print()
+            #print(f'\nFrom DEPTH {n["depth"]} branch --> Child {child_count}: \nPLAYER {p} moves as {child_move}')
+            #print(' STATE before move:')
+            #n['state'].print()
             new_state = copy.deepcopy(n['state'])  # Copy state to aviod modifying current state
             new_state.place(child_move, p)  # Generate child state
-            print(' STATE after move:')
-            new_state.print()  # Eyetest child state
+            #print(' STATE after move:')
+            #new_state.print()  # Eyetest child state
             new_p = [1, 2]
             new_p.remove(p)  # Reverse persective for child node
-            child_n = minimax(new_state, n['depth'] - 1, 'MIN', new_p[0])  # Generate child node
+            child_n = minimax(new_state, n['depth'] - 1, new_p[0], 'MIN')  # Generate child node
             n['children'].update({str(child_move): child_n})  # Store children node
             if child_n['score'] > g_max:  # Update current node to back up from the maximum child node
                 g_max = child_n['score']
                 n['score'] = child_n['score']
                 n['move'] = child_move
-            print(f'End of PLAYER {p} DEPTH {n["depth"]} {n["type"]} node: Child move {child_move}', end=" ")
-            print(f'score = {child_n["score"]}; Updated optimal move {n["move"]} score = {n["score"]}.')
+            #print(f'End of PLAYER {p} DEPTH {n["depth"]} {n["type"]} node: Child move {child_move}', end=" ")
+            #print(f'score = {child_n["score"]}; Updated optimal move {n["move"]} score = {n["score"]}.')
             
     elif n['type'] == 'MIN':  # Min node
         g_min = np.inf  # Initialize min score with very large
         n['score'] = g_min
         for child_move in movelist:
             child_count = child_count + 1
-            print(f'\nFrom DEPTH {n["depth"]} branch --> Child {child_count}: \nPLAYER {p} moves at {child_move}')
-            print(' STATE before move:')
-            n['state'].print()
+            #print(f'\nFrom DEPTH {n["depth"]} branch --> Child {child_count}: \nPLAYER {p} moves at {child_move}')
+            #print(' STATE before move:')
+            #n['state'].print()
             new_state = copy.deepcopy(n['state'])
             new_state.place(child_move, p)  # Generate child state
-            print(' STATE after move:')
-            new_state.print()
+            #print(' STATE after move:')
+            #new_state.print()
             new_p = [1, 2]
             new_p.remove(p)  # Reverse persective for child node
-            child_n = minimax(new_state, n['depth'] - 1, 'MAX', new_p[0])
+            child_n = minimax(new_state, n['depth'] - 1, new_p[0], 'MAX')
             n['children'].update({str(child_move): child_n})  # Store children node
             if child_n['score'] < g_min:  # Update current node to back up from the minimum child node
                 g_min = child_n['score']
                 n['score'] = child_n['score']
                 n['move'] = child_move
-            print(f'End of PLAYER {p} DEPTH {n["depth"]} {n["type"]} node: Child move {child_move}', end=" ")
-            print(f'score = {child_n["score"]}; Updated optimal move {n["move"]} score = {n["score"]}.')
+            #print(f'End of PLAYER {p} DEPTH {n["depth"]} {n["type"]} node: Child move {child_move}', end=" ")
+            #print(f'score = {child_n["score"]}; Updated optimal move {n["move"]} score = {n["score"]}.')
     else: 
         print('Error: Nothing to execute.')
         return

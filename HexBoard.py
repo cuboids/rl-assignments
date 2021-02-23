@@ -4,20 +4,22 @@ from trueskill import Rating, rate_1vs1
 
 
 class Agent:
-    def __init__(self, name=None, depth=3, eval="random"):
+    def __init__(self, name=None, depth=3, searchby="random", timelimit=2):
         """Sets up the agent.
 
         Args:
-            depth: an integer representing the eval depth
-            eval: a string with the evaluation method.
-              Currently supports "random", "human", and "dijkstra"
+            depth: an integer representing the search depth
+            searchby: a string indicating the search method.
+              Currently supports "random", "human", "minimax", "alphabeta", "alphabetaIDTT"
+            timelimit: an integer representing timelimit for anytime search algorithm, including "alphabetaIDTT"
         """
         if name is None:
             self.name = names.get_first_name()
         else:
             self.name = name
         self.depth = depth
-        self.eval = eval
+        self.timelimit = timelimit
+        self.searchby = searchby
         self.rating = Rating()
         self.rating_history = [self.rating]
 
@@ -172,3 +174,11 @@ class HexBoard:
     def get_allempty(self):
         """Return a list of empty positions in current board, same as movelist."""
         return [k for k, v in self.board.items() if v == 3]  # 3 = EMPTY
+
+    def convert_key(self):
+        """Return a key (str) that represent board positions, unique"""
+        key = "" # initiate
+        for y in range(self.size):
+            for x in range(self.size):
+                key += str(self.board[x, y])  # read piece state {1/2/3}
+        return key

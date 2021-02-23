@@ -1,8 +1,10 @@
-import HexBoard
-import Minimax
+from search_minimax import minimax
+from search_alphabeta import alphabeta
+from search_iterativedeepening import iterativedeepening
 import random
 from time import perf_counter
 from HexBoard import Agent
+from HexBoard import HexBoard
 
 
 def play_hex(ngames=1, board_size=11, player1=Agent(name="Alice"), player2=Agent(name="Bob"),
@@ -30,9 +32,6 @@ def play_hex(ngames=1, board_size=11, player1=Agent(name="Alice"), player2=Agent
     A: Change the value assigned to 'move' correspondingly.
     There are several options (random move, manual move, minimax).
     But user has to modify corresponding code.
-
-    Missing feature:
-    unMove() to explore games further
     """
     # set parameters
 
@@ -47,7 +46,7 @@ def play_hex(ngames=1, board_size=11, player1=Agent(name="Alice"), player2=Agent
 
     for game_i in range(1, ngames + 1):
 
-        game = HexBoard.HexBoard(board_size)  # Initialize board
+        game = HexBoard(board_size)  # Initialize board
         assert not game.is_game_over()
         turn = 0  # Reset turn count
 
@@ -67,32 +66,44 @@ def play_hex(ngames=1, board_size=11, player1=Agent(name="Alice"), player2=Agent
             turn += 1
             # BLUE's turn to move
             if game_i % 2 == turn % 2:  # (odd game AND odd turn) OR (even game AND even turn)
-                if player1.eval == 'random':
+                if player1.searchby == 'random':
+                    print('r')
                     move = random.sample(game.get_allempty(), 1)[0]
-                elif player1.eval == 'dijkstra':
-                    move = Minimax.minimax(game, player2.depth, "MAX", 1)['move']
-                elif player1.eval == 'name':
-                    move_x = input('Insert x-coordinate to move?')
-                    move_y = input('Insert y-coordinate to move?')
-                    move = (move_x, move_y)
+                elif player1.searchby == 'minimax':
+                    print('m')
+                    move = minimax(game, player1.depth, 1)['move']
+                elif player1.searchby == 'alphabeta':
+                    print('ab')
+                    move = alphabeta(game, player1.depth, 1)['move']
+                elif player1.searchby == 'alphabetaIDTT':
+                    print('idtt')
+                    move = iterativedeepening(game, player1.timelimit, 1)['move']
+                elif player1.searchby == 'human':
+                    move_x = input('[Player 1] Insert x-coordinate to move?')
+                    move_y = input('[Player 1] Insert y-coordinate to move?')
+                    move = (int(move_x), int(move_y))
                 else:
-                    print(f'Player type {player1.eval} not yet supported.')
+                    print(f'Player type {player1.searchby} not yet supported.')
                     print('Playing a random move.')
                     move = random.sample(game.get_allempty(), 1)[0]
                 game.place(move, 1)
 
             # RED's turn to move
             else:
-                if player2.eval == 'random':
+                if player2.searchby == 'random':
                     move = random.sample(game.get_allempty(), 1)[0]
-                elif player2.eval == 'dijkstra':
-                    move = Minimax.minimax(game, player2.depth, "MAX", 2)['move']
-                elif player2.eval == 'human':
-                    move_x = input('Insert x-coordinate to move: ')
-                    move_y = input('Insert y-coordinate to move: ')
-                    move = (move_x, move_y)
+                elif player2.searchby == 'minimax':
+                    move = minimax(game, player2.depth, 2)['move']
+                elif player2.searchby == 'alphabeta':
+                    move = alphabeta(game, player2.depth, 2)['move']
+                elif player2.searchby == 'alphabetaIDTT':
+                    move = iterativedeepening(game, player2.timelimit, 2)['move']
+                elif player2.searchby == 'human':
+                    move_x = input('[Player 2] Insert x-coordinate to move: ')
+                    move_y = input('[Player 2] Insert y-coordinate to move: ')
+                    move = (int(move_x), int(move_y))
                 else:
-                    print(f'Player type {player1.eval} not yet supported.')
+                    print(f'Player type {player2.searchby} not yet supported.')
                     print('Playing a random move.')
                     move = random.sample(game.get_allempty(), 1)[0]
                 game.place(move, 2)
@@ -106,8 +117,9 @@ def play_hex(ngames=1, board_size=11, player1=Agent(name="Alice"), player2=Agent
         time_elapsed = time_stop - time_start
 
         # print game result
-        print('Game {} ends in {} turns. Elapsed time {}.'.format(game_i, turn, time_elapsed))
+        print(f'Game {game_i} ends in {turn} turns. Elapsed time {time_elapsed}.')
         if show_endgame:
+            print('End state:')
             game.print()
 
         if game.check_win(1):
@@ -115,7 +127,7 @@ def play_hex(ngames=1, board_size=11, player1=Agent(name="Alice"), player2=Agent
             winner = player1.name
             player1.rate_1vs1(player2)
         elif game.check_win(2):
-            print(f'Game {game_i} won by {player1.name} (red).')
+            print(f'Game {game_i} won by {player2.name} (red).')
             winner = player2.name
             player2.rate_1vs1(player1)
         else:
@@ -133,4 +145,4 @@ def play_hex(ngames=1, board_size=11, player1=Agent(name="Alice"), player2=Agent
     return games_result
 
 
-play_hex(10)
+#play_hex(10)
