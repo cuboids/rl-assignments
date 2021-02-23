@@ -66,6 +66,10 @@ class HexBoard:
 
     def get_color(self, coordinates):
         """Read color of a position"""
+        if coordinates in ["Left", "Right"]:
+            return HexBoard.BLUE
+        if coordinates in ["Top", "Down"]:
+            return HexBoard.RED
         if coordinates == (-1, -1):
             return HexBoard.EMPTY
         return self.board[coordinates]
@@ -87,8 +91,12 @@ class HexBoard:
             return HexBoard.RED
         return HexBoard.BLUE
 
-    def get_neighbors(self, coordinates):
-        """Return a list of valid neighbor coordinates from a position"""
+    def get_neighbors(self, coordinates, extra_hexes=False):
+        """Return a list of valid neighbor coordinates from a position
+        Input:
+          extra_hexes: if extra hexes Left, Top, Right, Down should be included.
+
+        """
 
         neighbors = []
         # Add four hexes outside the board for the Dijkstra algorithm.
@@ -97,9 +105,9 @@ class HexBoard:
         elif coordinates == "Top":
             neighbors.extend([(cx, 0) for cx in range(self.size)])
         elif coordinates == "Right":
-            neighbors.extend([(self.size, cy) for cy in range(self.size)])
+            neighbors.extend([(self.size - 1, cy) for cy in range(self.size)])
         elif coordinates == "Down":
-            neighbors.extend([cx, self.size] for cx in range(self.size))
+            neighbors.extend([(cx, self.size - 1) for cx in range(self.size)])
         else:
             (cx, cy) = coordinates
             if cx - 1 >= 0:
@@ -114,6 +122,15 @@ class HexBoard:
                 neighbors.append((cx, cy + 1))
             if cy - 1 >= 0:
                 neighbors.append((cx, cy-1))
+            if extra_hexes:
+                if not cx:
+                    neighbors.append("Left")
+                if not cy:
+                    neighbors.append("Top")
+                if cx == self.size - 1:
+                    neighbors.append("Right")
+                if cy == self.size - 1:
+                    neighbors.append("Down")
         return neighbors
 
     def border(self, color, move):
@@ -174,6 +191,9 @@ class HexBoard:
     def get_allempty(self):
         """Return a list of empty positions in current board, same as movelist."""
         return [k for k, v in self.board.items() if v == 3]  # 3 = EMPTY
+
+    def get_all(self):
+        return [k for k, v in self.board.items()]
 
     def convert_key(self):
         """Return a key (str) that represent board positions, unique"""
