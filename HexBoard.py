@@ -2,6 +2,8 @@ import copy
 import names  # For giving random names to agents. See https://pypi.org/project/names/
 import numpy as np
 import random
+import math 
+from itertools import permutations
 from trueskill import Rating, rate_1vs1
 # from chooseEval import evaluateScore  # TO BE DEPRECIATED
 
@@ -583,8 +585,186 @@ class Agent:
             return dijkstra2_r(game, player, next_square, distance, unvisited, destination)
 
         return dijkstra2_r(game, player, square, distance, unvisited, destination)
+    @staticmethod
+    def eval_MCTS(self,game,times_of_loop,cp = 1):
+        """MCTS
 
+        Args:
+            game: A HexBoard instance.
+            times_of_loop: Int. iteration times of every move
+            cp: A parameter of UCT formula.
+        """                    
+        root = MCTS_hex(game,self.color)
+        for i in range(times_of_loop):
+            root.BestUCT_Childnode(cp)
+        score = {}
+        for childnode, nodeobject in root.children.items():
+            if nodeobject.visit_count == 0:
+                nodeobject.visit_count = -1000 # Assume we do not pick unexplore node
+            score[childnode] = nodeobject.value_sum/nodeobject.visit_count
+        return max(score, key= score.get)[-1]                  
+                          
+class MCTS_hex:
+    def __init__(self, game, col, parent = "root has no parent",ID_tuple = ("root",)):
+        """MCTS algorithm: get the node.
 
+        Args:
+            game: A HexBoard instance.
+            col: Either HexBoard.BLUE or HexBoard.RED.
+            parent: Parent's node.
+            ID_tuple: Unniquely define every node's identity.
+        """                  
+        self.player = col   #player is either HexBoard.BLUE or HexBoard.RED
+        self.parent = parent  # parent is a node object
+        self.children = {}      # the node's children
+        self.visit_count = 0    # Number of visit. 
+        self.value_sum = 0      # The total count of win 
+        self.state = copy.deepcopy(game)       # self.state is HexBoard object
+        self.state_empty = [k for k, v in self.state.board.items() if v == 3 ]
+        # the ID_tuple is nodes name or we can say it is the "state"
+        # the name gives us information of path. i.e. all the actions in order by two players
+        self.ID_tuple = ID_tuple
+
+    def expanded(self):
+        """To check whether the node is expanded or not"""                   
+        return len(self.children) > 0
+      
+    def freddy_get_root_Node(self):
+        """To get the root"""
+        parent = self.parent
+        if parent == "root has no parent":
+            return self
+        return parent.freddy_get_root_Node()
+                                         
+    def expand(self):
+        """To expand childnodes"""                  
+        player = self.player     
+        if self.player == HexBoard.BLUE:
+            enemy_player = HexBoard.RED
+        else:
+            enemy_player = HexBoard.BLUE
+        movingstate = copy.deepcopy(self.state)
+        emptycoordinate_2 = copy.deepcopy(self.state_empty)   
+        for a_tuple in emptycoordinate_2:
+            movingstate.place(a_tuple, player)
+            nodes_name = self.ID_tuple + (a_tuple,)
+            self.children[nodes_name]= MCTS_hex(game = movingstate, col = enemy_player, parent = self,ID_tuple = nodes_name)
+
+            
+    def rollout(self): 
+        """To roll out  to the terminal and get the reward [-1, 0 , 1]"""                   
+        root_color = self.freddy_get_root_Node().player
+        player = self.player
+        movingstate = copy.deepcopy(self.state)
+        emptycoordinate = [k for k, v in movingstate.board.items() if v == 3]     
+        if player == HexBoard.BLUE:
+            player_enemy = HexBoard.RED
+        else:
+            player_enemy = HexBoard.BLUE                       
+        if movingstate.check_win(player_enemy) == True: 
+            if  player_enemy == root_color:
+                self.value_sum = 1
+            else:
+                self.value_sum = -1
+        elif movingstate.check_win(player) == True:
+            if  player_enemy == root_color:
+                self.value_sum = -1
+            else:
+                self.value_sum = 1
+        elif emptycoordinate == {}:
+            self.value_sum = 0
+        else: 
+            while True:
+                a_empty_piece = random.choice(emptycoordinate)
+                movingstate.place(a_empty_piece,player)
+                emptycoordinate.remove(a_empty_piece)
+                if movingstate.check_win(player) == True:
+                    if  player_enemy == root_color:
+                        self.value_sum = -1
+                        break
+                    else:
+                        self.value_sum = 1
+                    break                        
+                a_empty_piece = random.choice(emptycoordinate)
+                movingstate.place(a_empty_piece,player_enemy)
+                emptycoordinate.remove(a_empty_piece)
+                if movingstate.check_win(player_enemy) == True:
+                    if  player_enemy == root_color:
+                        self.value_sum = 1
+                        break
+                    else:
+                        self.value_sum = -1
+                        break                        
+                if emptycoordinate == {}:
+                    self.value_sum = 0
+                    break                                               
+
+    def backpropagate(self, reward = 0):
+        """To add back visit count/ reward to the node's parent, parent'parent... root.
+        
+        Args:
+            reward: [-1,0,1]
+        """       
+        if self.parent == "root has no parent":  
+            return None
+        elif self.visit_count == 0:
+            self.visit_count =1
+            reward = self.value_sum
+            self.parent.visit_count += 1
+            self.parent.value_sum += reward
+            self.parent.backpropagate(reward)
+        elif self.children == {}:
+            self.visit_count +=1
+            self.parent.value_sum += reward
+            self.parent.backpropagate(reward)      
+        elif self.parent != "root has no parent":
+            self.parent.visit_count += 1
+            self.parent.value_sum += reward
+            self.parent.backpropagate(reward)
+            
+    def BestUCT_Childnode(self,cp = 1): 
+        """Select function of MCTS.
+        
+        Args:
+            cp: a parameter of UCT formula.
+        """                   
+        # BestUCT_Childnode is our selection function
+        # cp is the parameter of the UCT formula
+        # player is either HexBoard.BLUE or HexBoard.RED
+        if self.children == {}:
+            self.expand()
+        a_dic = {}
+        nodes_visit_num = []
+        self.cp = cp         
+        self.root = self.freddy_get_root_Node()  
+        for childnode, nodeobject in self.children.items():
+            nodes_visit_num.append(nodeobject.visit_count)     
+        if 0 in nodes_visit_num: 
+            for childnode, nodeobject in self.children.items():
+                if nodeobject.visit_count == 0:
+                    nodeobject.rollout()
+                    nodeobject.backpropagate()   
+                    return None#self.children[childnode]
+                    break
+        elif self.children == {}: 
+            self.rollout()
+            self.backpropagate()
+            return None
+        else: 
+            for childnode, nodeobject in self.children.items():
+                self.exploitation = nodeobject.value_sum / nodeobject.visit_count
+                self.term = math.log(nodeobject.parent.visit_count)/nodeobject.visit_count
+                if self.term < 0: #becasue < 0 can not be taken sqrt
+                    self.term = 0
+                self.exploration = self.cp * math.sqrt(self.term)
+                a_dic[childnode] = self.exploitation + self.exploration  
+            Bestchild_ID_tuple = max(a_dic, key= a_dic.get)
+            Bestchild = self.children[Bestchild_ID_tuple] 
+            if Bestchild.visit_count != 0: 
+                return Bestchild.BestUCT_Childnode() 
+
+                          
+                                                  
 class HexBoard:
     BLUE = 1  # value take up by a position
     RED = 2

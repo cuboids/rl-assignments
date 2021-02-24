@@ -94,9 +94,7 @@ def ttalphabeta(board, depth, p, ntype='MAX', a=-np.inf, b=np.inf, tt=Transposit
             #print('_AFTER move (child state):')
             #new_state.print()
             #print('\n')
-            new_p = [1, 2]
-            new_p.remove(p)  # Reverse persective for child node
-            (child_n, tt) = ttalphabeta(new_state, n['depth'] - 1, new_p[0], 'MIN', a, b, tt)  # Search OR evaluate child node, update TT
+            (child_n, tt) = ttalphabeta(new_state, n['depth'] - 1, p, 'MIN', a, b, tt)  # Search OR evaluate child node, update TT
             n['children'].update({str(child_move): child_n})  # Store children node to current node
             if child_n['score'] > g_max:  # Update current node to backtrack from the maximum child node
                 g_max = child_n['score']  # Update max score
@@ -117,16 +115,16 @@ def ttalphabeta(board, depth, p, ntype='MAX', a=-np.inf, b=np.inf, tt=Transposit
         n['score'] = g_min
         for child_move in movelist:
             #print(f'From DEPTH {n["depth"]} branch --> Child #{movelist.index(child_move)}: \n_PLAYER {p} will make move {child_move}')
+            new_p = [1, 2]
+            new_p.remove(p)
             new_state = copy.deepcopy(n['state'])
-            new_state.place(child_move, p)          
+            new_state.place(child_move, new_p[0])          
             #print('_BEFORE move (current state):')
             #n['state'].print()            
             #print('_AFTER move (child state):')
             #new_state.print()
             #print('\n')
-            new_p = [1, 2]
-            new_p.remove(p)
-            (child_n, tt) = ttalphabeta(new_state, n['depth'] - 1, new_p[0], 'MAX', a, b, tt)  # Child of MIN becomes MAX
+            (child_n, tt) = ttalphabeta(new_state, n['depth'] - 1, p, 'MAX', a, b, tt)  # Child of MIN becomes MAX
             n['children'].update({str(child_move): child_n})
             if child_n['score'] < g_min:  # Update current node to backtrack from the minimum child node
                 g_min = child_n['score']
