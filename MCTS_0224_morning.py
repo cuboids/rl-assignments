@@ -267,6 +267,25 @@ class Node:
         if self == "root has no parent":
             self.visit_count +=1
             return None
+        elif self.parent == "root has no parent":  
+            return None
+        
+        elif self.visit_count == 0:
+            self.visit_count =1
+            reward = self.value_sum
+            self.parent.visit_count += 1
+            self.parent.value_sum += reward
+            self.parent.backpropagate(reward)
+            
+        elif self.children == {}:
+            self.visit_count +=1
+            self.parent.value_sum += reward
+            self.parent.backpropagate(reward)
+            
+        elif self.parent != "root has no parent":
+            self.parent.visit_count += 1
+            self.parent.value_sum += reward
+            self.parent.backpropagate(reward)
 
           
 import random
