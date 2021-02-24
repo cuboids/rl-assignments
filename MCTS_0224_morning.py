@@ -76,7 +76,16 @@ class HexBoard:
                     print("- ",end="")
         print("|")
     print("   -----------------------")
-import math 
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  import math 
 from itertools import permutations
 import copy
 import random
@@ -86,7 +95,9 @@ import random
 class Node:
     def __init__(self, board,player, parent = "root has no parent",ID_tuple = ("root",)):
         # board is HexBoard object
-        self.player = player
+        # player is either HexBoard.BLUE or HexBoard.RED
+
+        self.player = player   #player is either HexBoard.BLUE or HexBoard.RED
         self.parent = parent  # parent is a node object
         self.children = {}      # the node's children
         self.visit_count = 0    # Number of visit. 
@@ -105,6 +116,7 @@ class Node:
         
         
     def freddy_get_root_Node(self):
+        # To get the node object of the root
         parent = self.parent
         if parent == "root has no parent":
             return self
@@ -112,13 +124,13 @@ class Node:
 
     
     
-    def BestUCT_Childnode(self,cp = 2): # BestUCT_Childnode is our selection function
+    def BestUCT_Childnode(self,cp = 2): 
+        # BestUCT_Childnode is our selection function
         # cp is the parameter of the UCT formula
         # player is either HexBoard.BLUE or HexBoard.RED
         if self.children == {}:
             self.expand()
 
-        # the below is to get UTC value
         a_dic = {}
         nodes_visit_num = []
         self.cp = cp         
@@ -127,18 +139,21 @@ class Node:
             nodes_visit_num.append(nodeobject.visit_count)
         
 
-        if 0 in nodes_visit_num:
+        if 0 in nodes_visit_num: # the node's still have some unseen childnode
             for childnode, nodeobject in self.children.items():
                 if nodeobject.visit_count == 0:
                     nodeobject.rollout()
                     nodeobject.backpropagate()   
-                    return self.children[childnode]
+                    return None#self.children[childnode]
                     break
-        else:
+        elif self.children == {}: # the node does not have child
+            self.rollout()
+            self.backpropagate()
+            return None
+        else: 
             for childnode, nodeobject in self.children.items():
                                 
                 # the below is to get UTC value
-
                 self.exploitation = nodeobject.value_sum / nodeobject.visit_count
                 self.term = math.log(nodeobject.parent.visit_count)/nodeobject.visit_count
                 if self.term < 0: #becasue < 0 can not be taken sqrt
@@ -153,25 +168,34 @@ class Node:
                 
         
     def expand(self): # expand unseennodes 
+        
+        
         player = self.player
+        
+        # the if else below ensures its childe node corrspond to right player
+        # the player  will be used in the rollout
+
+        if self.player == HexBoard.BLUE:
+            enemy_player = HexBoard.RED
+        else:
+            enemy_player = HexBoard.BLUE
         movingstate = copy.deepcopy(self.state) # movingstate is  HexBoard object
         emptycoordinate_2 = copy.deepcopy(self.state_empty) #avoid replacing the "self.state_empty"
            
         for a_tuple in emptycoordinate_2:
             movingstate.place(a_tuple, player)
             nodes_name = self.ID_tuple + (a_tuple,)
-            self.children[nodes_name]= Node(movingstate,player, parent = self,ID_tuple = nodes_name)
-            movingstate = copy.deepcopy(self.state)
+            self.children[nodes_name]= Node(movingstate,enemy_player, parent = self,ID_tuple = nodes_name)
+            #movingstate = copy.deepcopy(self.state)
 
             
                         
     def rollout(self): 
         # rollout give the reward for unseen nodes
-        # The reward is in the "red" perspective! important!!!!
+        # The reward is in the "root color" perspective! 
         # player is either HexBoard.BLUE or HexBoard.RED
-        player  = self.player
-        
-
+        root_color = self.freddy_get_root_Node().player
+        player = self.player
         movingstate = copy.deepcopy(self.state)
         emptycoordinate = [k for k, v in movingstate.board.items() if v == 3]     
         if player == HexBoard.BLUE:
@@ -183,147 +207,222 @@ class Node:
             
         #first three "if(elif)" is to check current state has a win or lose
         if movingstate.check_win(player_enemy) == True: 
-            if  player_enemy == HexBoard.BLUE:
-                self.value_sum = -1
-            else:
+            if  player_enemy == root_color:
                 self.value_sum = 1
+            else:
+                self.value_sum = -1
             
         elif movingstate.check_win(player) == True:
-            if  player_enemy == HexBoard.BLUE:
-                self.value_sum = 1
-            else:
+            if  player_enemy == root_color:
                 self.value_sum = -1
+            else:
+                self.value_sum = 1
             
         elif emptycoordinate == {}:
             self.value_sum = 0
+        # the reward is relative standard. i.e. it depends on the root'color
         else: 
-            if len(self.ID_tuple) == 0: # it means the player we assigned is the first turn
-                while True:
-                    a_empty_piece = random.choice(emptycoordinate)
-                    movingstate.place(a_empty_piece,player)
-                    emptycoordinate.remove(a_empty_piece)
-                    if movingstate.check_win(player) == True:
+            while True:
+                a_empty_piece = random.choice(emptycoordinate)
+                movingstate.place(a_empty_piece,player)
+                emptycoordinate.remove(a_empty_piece)
+
+                if movingstate.check_win(player) == True:
+
+                    if  player_enemy == root_color:
+                        self.value_sum = -1
+                        break
+                    else:
+                        self.value_sum = 1
+                    break
+                        
+                a_empty_piece = random.choice(emptycoordinate)
+                movingstate.place(a_empty_piece,player_enemy)
+                emptycoordinate.remove(a_empty_piece)
+
+                if movingstate.check_win(player_enemy) == True:
+
+                    if  player_enemy == root_color:
                         self.value_sum = 1
                         break
-                        
-                    a_empty_piece = random.choice(emptycoordinate)
-                    movingstate.place(a_empty_piece,player_enemy)
-                    emptycoordinate.remove(a_empty_piece)
-            
-                    if movingstate.check_win(player_enemy) == True:
+                    else:
                         self.value_sum = -1
                         break
                         
-                    if emptycoordinate == {}:
-                        self.value_sum = 0
-                        break
+                if emptycoordinate == {}:
+                    self.value_sum = 0
+                    break
                                    
-            else: # it means the enemy player is the first turn
-                while True:
-                    a_empty_piece = random.choice(emptycoordinate)
-                    movingstate.place(a_empty_piece,player_enemy)
-                    emptycoordinate.remove(a_empty_piece)
             
-                    if movingstate.check_win(player_enemy) == True:
-                        self.value_sum = -1
-                        break
-            
-                    a_empty_piece = random.choice(emptycoordinate)
-                    movingstate.place(a_empty_piece,player)
-                    emptycoordinate.remove(a_empty_piece)
-                    if movingstate.check_win(player) == True:
-                        self.value_sum = 1
-                        break
-                    
-                    if emptycoordinate == {}:
-                        self.value_sum = 0
-                        break
 
     def backpropagate(self, reward = 0):
+        #the function is to add back visit count/ value to the node's parent, parent'parent... root
+        
+        
         #print("The node ",self.ID_tuple,": its visit count is",self.visit_count)
        # print("The node ",self.ID_tuple,": its value is",self.value_sum)
        # print("The node ",self.ID_tuple,": its parent is ",self.parent )
 
 
-        if self.visit_count == 0:
+        if self == "root has no parent":
+            self.visit_count +=1
+            return None
+        elif self.parent == "root has no parent":  
+            return None
+        
+        elif self.visit_count == 0:
             self.visit_count =1
             reward = self.value_sum
             self.parent.visit_count += 1
             self.parent.value_sum += reward
             self.parent.backpropagate(reward)
+            
+        elif self.children == {}:
+            self.visit_count +=1
+            self.parent.value_sum += reward
+            self.parent.backpropagate(reward)
+            
+        elif self.parent != "root has no parent":
+            self.parent.visit_count += 1
+            self.parent.value_sum += reward
+            self.parent.backpropagate(reward)
+
+          
+import random
+from itertools import product
+
+# Alpha_Beta
+  ## random generator
+
+    
+def test_intellgent1(N):  # MCTS_2nd turn and color is blue
+    player2 = HexBoard.BLUE
+    player1 = HexBoard.RED
+    size_board = 5 #int(input("what is the size of the game?"))
+    player1 = HexBoard.RED
+
+    win = 0
+    MCTS_simu_times = 50
+    for i in range(N):
+        samplespace = list(product([i for i in range(size_board)],[i for i in range(size_board)])) 
+        board = HexBoard(size_board)
+        while True:
+            one_trial = random.choice(samplespace)
+            board.place(one_trial, player1)
+
+            samplespace.remove(one_trial)
+
+            if board.check_win(player1):
+                break
+            MCTS_AI = MCTS(board,player2,MCTS_simu_times,cp = 2) 
+            board.place(MCTS_AI, player2)
+            samplespace.remove(MCTS_AI)
+
+            if board.check_win(player2):
+                win += 1
+                break
+        
+            if samplespace == []:
+                break
+
+    print("MCTS_2nd turn and color is blue")   
+    print("We try",N,"times of games. ","MCTS_simu_times are ",MCTS_simu_times, ". Win rate for RED_MCTS is:", win/N)
+
+
+
+
+
+#TEST 
+
+test_intellgent1(200)
+
+   
+
+def test_intellgent2(N):    # MCTS_2nd turn and color is red
+    size_board = 5 #int(input("what is the size of the game?"))
+    player2 = HexBoard.RED
+    player1 = HexBoard.BLUE 
+
+    win = 0
+    MCTS_simu_times = 50
+
+    for i in range(N):
+        samplespace = list(product([i for i in range(size_board)],[i for i in range(size_board)])) 
+        board = HexBoard(size_board)
+        while True:
+            one_trial = random.choice(samplespace)
+            board.place(one_trial, player1)
+
+            samplespace.remove(one_trial)
+
+            if board.check_win(player1):
+                break
+            MCTS_AI = MCTS(board,player2,MCTS_simu_times,cp = 2) 
+            board.place(MCTS_AI, player2)
+            samplespace.remove(MCTS_AI)
+
+            if board.check_win(player2):
+                win += 1
+                break
+        
+            if samplespace == []:
+                break
+
+    print("MCTS_2nd turn and color is red") 
+    print("We try",N,"times of games. ","MCTS_simu_times are",MCTS_simu_times, ". Win rate for RED_MCTS is:", win/N)
+
+
+
+
+
+
+
+test_intellgent2(200)
+
+   
+        
+        
+              
+
+        
+        elif self.parent == "root has no parent":  
+            return None
+        
+        elif self.visit_count == 0:
+            self.visit_count =1
+            reward = self.value_sum
+            self.parent.visit_count += 1
+            self.parent.value_sum += reward
+            self.parent.backpropagate(reward)
+            
+        elif self.children == {}:
+            self.visit_count +=1
+            self.parent.value_sum += reward
+            self.parent.backpropagate(reward)
+            
         elif self.parent != "root has no parent":
             self.parent.visit_count += 1
             self.parent.value_sum += reward
             self.parent.backpropagate(reward)
             
-
-# the execute function
+    
+        
+            
+        
+        
+        
+   
+            
 
 def MCTS(board,player,times_of_loop,cp = 2):
+    # times_of_loop is int
     root = Node(board,player)
     for i in range(times_of_loop):
         root.BestUCT_Childnode(cp)
-    
     # get score
     score = {}
     for childnode, nodeobject in root.children.items():
+        if nodeobject.visit_count == 0:
+            nodeobject.visit_count = -1000 # Assume we do not pick unexplore node
         score[childnode] = nodeobject.value_sum/nodeobject.visit_count
-    print(score)
-    if player == HexBoard.RED: # because score is in the red perspective
-        return max(score, key= score.get)[-1]
-    else:
-        return min(score, key= score.get)[-1]
-        
-            
-        
-# Test1        
-        
-## given a state below
-winner = HexBoard.RED 
-loser = HexBoard.BLUE 
-board = HexBoard(3)
-
-board.place((1,1), loser)
-board.place((2,1), loser)
-
-
-board.place((0,0), winner)
-
-board.place((0,1), winner)
-
-
-board.print()
-# given a state above
-print("If next turn is red",MCTS(board,player = winner,times_of_loop = 30,cp = 2))
-
-print("If next turn is blue",MCTS(board,player = loser,times_of_loop = 30,cp = 2))   
-            
-
-        
-        
-# Test2        
-        
-# given a state below
-winner = HexBoard.RED 
-loser = HexBoard.BLUE 
-board = HexBoard(3)
-
-board.place((1,2), loser)
-board.place((0,2), loser)
-
-
-board.place((0,0), winner)
-
-board.place((0,1), winner)
-
-
-board.print()
-# given a state above
-0
-print("If next turn is red",MCTS(board,player = winner,times_of_loop = 30,cp = 2))
-
-print("If next turn is blue",MCTS(board,player = loser,times_of_loop = 30,cp = 2))
-   
-            
-  
-  
+    return max(score, key= score.get)[-1]
