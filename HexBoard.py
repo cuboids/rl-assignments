@@ -360,11 +360,8 @@ class MCTS_hex:
         
         Args:
             reward: [-1,0,1]
-        """ 
-        if self == "root has no parent":
-            self.visit_count +=1
-            return None
-        elif self.parent == "root has no parent":  
+        """       
+        if self.parent == "root has no parent":  
             return None
         elif self.visit_count == 0:
             self.visit_count =1
