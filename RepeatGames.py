@@ -3,7 +3,7 @@ from HexBoard import Agent, HexBoard
 
 
 def play_hex(ngames=None, player1=Agent(name="Alice"), player2=Agent(name="Bob"), board_size=3,
-             show_midgame=False, show_endgame=True, seed=0):
+             show_midgame=False, show_endgame=True, seed=0, analysis=False):
     # Docstring needs to be revised!
     """
     Script to repeat n games.
@@ -19,7 +19,7 @@ def play_hex(ngames=None, player1=Agent(name="Alice"), player2=Agent(name="Bob")
         show_midgame: if midgame positions need to be printed.
         show_endgame: if the final position needs to be printed
         seed: specify to get different results
-
+        analysis: if agents should share their thought processes
     Returns:
         All game results is stored in dict games_result.
         Data stored: endstate, winner, turns, elapsed_time
@@ -48,6 +48,8 @@ def play_hex(ngames=None, player1=Agent(name="Alice"), player2=Agent(name="Bob")
     for game_i in range(1, ngames + 1):
         game = HexBoard(board_size)
         player1.game = player2.game = game_i
+        nodes1, nodes2 = [], []
+        nodes = (nodes1, nodes2)
         n_turns = 0
         print(f'Game {game_i} starts. {player1.name if game_i % 2 else player2.name} moves first.')
         time_start = perf_counter()  # Time each game
@@ -59,6 +61,8 @@ def play_hex(ngames=None, player1=Agent(name="Alice"), player2=Agent(name="Bob")
             n_turns += 1
             turn = int(n_turns % 2 != game_i % 2)
             player1.n_turns = player2.n_turns = n_turns
+            if analysis:
+                nodes[n_turns].append(players[turn].analyse_position(game))
             move = players[turn].make_move(game)
             game.place(move, players[turn].color)
 
@@ -88,7 +92,7 @@ def play_hex(ngames=None, player1=Agent(name="Alice"), player2=Agent(name="Bob")
             winner = None
 
         result_dict = {str(game_i): {'endstate': game, 'winner': winner, 'turns': n_turns,
-                                     'elapsed_time': time_elapsed}}
+                                     'elapsed_time': time_elapsed, 'nodes': nodes}}
         games_result['games'].update(result_dict)
 
     print()
@@ -98,6 +102,7 @@ def play_hex(ngames=None, player1=Agent(name="Alice"), player2=Agent(name="Bob")
 
 example = True
 if example:
-    Alice = Agent(name='Alice', searchby="alphabetaIDTT")
+    Alice = Agent(name='Alice', searchby='alphabetaIDTT')
     Bob = Agent(name='Bob', searchby="alphabeta")
-    play_hex(10, Alice, Bob, 5)
+    result = play_hex(1, Alice, Bob, 5, analysis=True)
+    print(result['games']['1']['nodes'])

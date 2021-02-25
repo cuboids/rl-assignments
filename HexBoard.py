@@ -4,6 +4,7 @@ import math
 import names  # For giving random names to agents. See https://pypi.org/project/names/
 import numpy as np
 import random
+import time
 from itertools import permutations
 from itertools import product  # For evalue_fun
 from trueskill import Rating, rate_1vs1
@@ -81,15 +82,18 @@ class Agent:
     Hash = hashlib.sha512
     MAX_HASH_PLUS_ONE = 2 ** (Hash().digest_size * 8)
 
-    def __init__(self, name=None, depth=3, searchby="random", timelimit=2):
+    def __init__(self, name=None, depth=3, searchby="random", hyperpars=None):
         """Sets up the agent.
 
         Args:
             name: a string representing the name of the agent
             depth: an integer representing the search depth
             searchby: a string indicating the search method.
-                Currently supports "random", "minimax", "alphabeta", "alphabetaIDTT"
-            timelimit: an integer representing timelimit for anytime search algorithm, including "alphabetaIDTT"
+                Currently supports "random", "minimax", "alphabeta", "alphabetaIDTT", and "mcts"
+            hyperpars: a dictionary with hyperparameters.
+                timilimit: integer representing timelimit for anytime search algorithm, including "alphabetaIDTT"
+                N: (used in MCTS)
+                Cp: (used in MCTS)
         """
         if name is None:
             self.name = names.get_first_name()
@@ -97,15 +101,21 @@ class Agent:
             self.name = "Agent Smith"
         else:
             self.name = name
+        if hyperpars is None:
+            hyperpars = {'timelimit': 2, 'N': 250, 'Cp': 2}
         self.depth = depth
         self.game = 0
         self.rating = Rating()
         self.rating_history = [self.rating]
         self.searchby = searchby
-        self.timelimit = timelimit
+        self.timelimit = hyperpars['timelimit']
         self.n_turns = 0
         self.color = None
         self.seed = 0
+        self.timelimit = 2
+        self.n = None  # last node
+        self.N = hyperpars['N']  # For MCTS
+        self.Cp = hyperpars['Cp']  # For MCTS
 
     def make_seed(self):
         """Generate a reproducible seed based on the Agent's name, turn, and game.
@@ -137,12 +147,41 @@ class Agent:
         else:
             self.rating, opponent.rating = rate_1vs1(rating2, self.rating)
         self.rating_history.append(self.rating)
+        opponent.rating_history.append(opponent.rating)
+        
+    def plot_rating_history(self, *args):
+        """Plot agents rating history"""
+        game = range(1, len(self.rating_history)+1)
+        mu = [rating.mu for rating in self.rating_history]
+        sigma = [rating.sigma for rating in self.rating_history]
+        ci_lower = [a - b for a, b in zip(mu, sigma)]
+        ci_upper = [a + b for a, b in zip(mu, sigma)]
+        fig, ax = plt.subplots()
+        ax.plot(game, mu, label=self.name, color='k')
+        ax.fill_between(game, ci_lower, ci_upper, alpha=0.1)
+        ax.plot(game, mu, 'o', markersize=3, color='k')
+        # Plot other agents (if any)
+        if not args == ():
+            linestyles = ['--', '.', '-.']
+            players = args
+            for player in players:
+                game = range(1, len(player.rating_history)+1)
+                mu = [rating.mu for rating in player.rating_history]
+                sigma = [rating.sigma for rating in player.rating_history]
+                ci_lower = [a - b for a, b in zip(mu, sigma)]
+                ci_upper = [a + b for a, b in zip(mu, sigma)]
+                ax.plot(game, mu, label=player.name, color='k', linestyle=linestyles[players.index(player)])
+                ax.fill_between(game, ci_lower, ci_upper, alpha=0.1)
+        ax.legend()
+        ax.set_xlabel('Number of games (N)')
+        ax.set_ylabel('Trueskill rating')
 
     def analyse_position(self, game):
         """Let the agent evaluate a position
         Returns more detailed information than make_move.
         """
-        return eval('self.' + self.searchby + '(game)')
+        self.n = eval('self.' + self.searchby + '(game)')
+        return self.n
 
     def make_move(self, game):
         """Let's the agent calculate a move based on it's searchby strategy
@@ -150,7 +189,11 @@ class Agent:
         Args:
             game: position of type HexBoard.
         """
-        n = eval('self.' + self.searchby + '(game)')
+        if self.n is not None:
+            n = self.n
+        else:
+            n = self.analyse_position(game)
+        self.n = None
         # alphabetaIDTT returns a tuple (n, tt)
         if isinstance(n, tuple):
             n = n[0]
@@ -339,7 +382,7 @@ class Agent:
 
         elif not depth:  # Case: reaching the search tree depth limit
             n['type'] = 'HEURISTIC'
-            n['score'] = self.eval_dijkstra2(n['state'])
+            n['score'] = self.eval_dijkstra1(n['state'], p)
             if self.DEBUG:
                 print(' Leaf SCORE (DEPTH==0) =', n['score'], '\n')
             return n
@@ -360,14 +403,14 @@ class Agent:
                     new_state.print()  # Eyetest child state
                 child_n = self.alphabeta(new_state, n['depth'] - 1, 'MIN', p, a, b)  # Generate child node
                 n['children'].update({str(child_move): child_n})  # Store children node
-                if child_n['score'] > g_max:  # Update current node to back up from the maximum child node
+                if child_n['score'] == g_max:
+                    n['moves'].append(child_move)
+                elif child_n['score'] > g_max:  # Update current node to back up from the maximum child node
                     g_max = child_n['score']
                     n['score'] = child_n['score']
                     n['move'] = child_move
                     n['moves'] = [child_move]
                     a = max(a, g_max)  # Update alpha, traces the g_max value
-                elif child_n['score'] == g_max:
-                    n['moves'].append(child_move)
                 if self.DEBUG:
                     print(f'End of PLAYER {p} DEPTH {n["depth"]} {n["type"]} node: Child move {child_move}', end=" ")
                     print(f'score = {child_n["score"]}; Updated optimal move {n["move"]} score = {n["score"]}.')
@@ -399,14 +442,14 @@ class Agent:
                     new_state.print()
                 child_n = self.alphabeta(new_state, n['depth'] - 1, 'MAX', p, a, b)
                 n['children'].update({str(child_move): child_n})  # Store children node
-                if child_n['score'] < g_min:  # Update current node to back up from the minimum child node
+                if child_n['score'] == g_min:
+                    n['moves'].append(child_move)
+                elif child_n['score'] < g_min:  # Update current node to back up from the minimum child node
                     g_min = child_n['score']
                     n['score'] = child_n['score']
                     n['move'] = child_move
                     n['moves'] = [child_move]
                     b = min(b, g_min)  # Update beta, traces the g_min value
-                elif child_n['score'] == g_min:
-                    n['moves'].append(child_move)
                 if self.DEBUG:
                     print(f'End of PLAYER {p} DEPTH {n["depth"]} {n["type"]} node: Child move {child_move}', end=" ")
                     print(f'score = {child_n["score"]}; Updated optimal move {n["move"]} score = {n["score"]}.')
@@ -425,8 +468,56 @@ class Agent:
 
         return n
 
-    def alphabetaIDTT(self, game, depth=None, p=None, ntype='MAX', a=-np.inf, b=np.inf,
-                      tt=TranspositionTable()):
+    def alphabetaIDTT(self, game):
+        """
+        Calls alpha-beta iteratively, starts at shallow depth and increase depth iteratively
+        The function will terminate on following conditions:
+        EITHER 1) kernel is interuppted OR 2) timeout OR 3) search depth exceeds board empty positions.
+        Parameters:
+            game (HexBoard object):
+            timelimit (int): search time limit in seconds. SUGGEST testing with timelimit from 1 first
+            p (int): carry to alphabeta(), refer to alphabeta() docstring
+        Ouput:
+            node (dict): {'state', 'depth', 'children', 'type', 'score', 'move'}
+        """
+        # Initialize
+        timelimit = self.timelimit
+        timeout = time.time() + timelimit  # Define timeout criteria
+        depth = 1  # Start with shallow depth
+        tt = TranspositionTable()  # Initialize search with empty
+        result_node = ()
+        # print('USER NOTE: Interrupt the kernel to terminate search. \n')
+
+        try:
+            while True:
+                # print(f'[Iteration status] Start iteration at depth {depth} \n')
+                # Option: alpha-beta + TT
+                result_node, tt = self.ttalphabeta(game=game, tt=tt)  # Use TT from previous search to improve efficiency
+                # Alternative option: alpha-beta
+                # n = alphabeta(board, depth, p)
+                # print(f'[Iteration status] Finish iteration at depth {depth}:', end=" ")
+                # print(f'Best move at root node = {result_node["move"]} \n')
+                if time.time() > timeout:  # WARNING This method is not perfect and only breaks after search completed, may change to raise + class Exception for instant interrupt
+                    print('[Iteration status] Termination: TIMEOUT \n')
+                    print(f'[Iteration report] Return result of completed search at depth {depth} \n')
+                    break
+                if depth == len(game.get_allempty()):
+                    print('[Iteration status] Termination: EXACT SEARCH')
+                    print(f'[Iteration report] Return result of completed search at depth {depth} \n')
+                    break
+                depth += 1  # Increase depth after one iteration
+
+        except KeyboardInterrupt:  # Interrupt kernel, Ctrl+c in console
+            print('[Iteration status] Termination: USER INTERRUPT')
+            print(f'[Iteration report] Return result of completed search at depth {depth - 1} \n')
+            pass
+
+        finally:
+            return result_node  # Normal output for repeat games, TT not required in this case.
+            # return (result_node, tt)  # Return for test only. Conflict with repeat games expected.
+
+    def ttalphabeta(self, game, depth=None, p=None, ntype='MAX', a=-np.inf, b=np.inf,
+                    tt=TranspositionTable()):
         """
         Alpha-Beta search algorithm, to be used with iterationdeepening() and custom class TranspositionTable.
         All debug printouts suppressed.
@@ -514,7 +605,7 @@ class Agent:
                 # new_state.print()
                 # print('\n')
                 # Search OR evaluate child node, update TT
-                child_n, tt = self.alphabetaIDTT(new_state, n['depth'] - 1, p, 'MIN', a, b, tt)
+                child_n, tt = self.ttalphabeta(new_state, n['depth'] - 1, p, 'MIN', a, b, tt)
                 n['children'].update({str(child_move): child_n})  # Store children node to current node
                 if child_n['score'] > g_max:  # Update current node to backtrack from the maximum child node
                     g_max = child_n['score']  # Update max score
@@ -548,7 +639,7 @@ class Agent:
                 # new_state.print()
                 # print('\n')
                 # Child of MIN becomes MAX
-                child_n, tt = self.alphabetaIDTT(new_state, n['depth'] - 1, p, 'MAX', a, b, tt)
+                child_n, tt = self.ttalphabeta(new_state, n['depth'] - 1, p, 'MAX', a, b, tt)
                 n['children'].update({str(child_move): child_n})
                 if child_n['score'] < g_min:  # Update current node to backtrack from the minimum child node
                     g_min = child_n['score']
@@ -648,8 +739,8 @@ class Agent:
         size_board = game.size
 
         samplespace = list(product([i for i in range(size_board)], [i for i in range(size_board)]))
-        redcoordinate = [k for k, v in game.game.items() if v == 2]  # Freddy asks Ifan
-        bluecoordinate = [k for k, v in game.game.items() if v == 1]  # Freddy asks Ifan
+        redcoordinate = [k for k, v in game.board.items() if v == 2]  # Freddy asks Ifan
+        bluecoordinate = [k for k, v in game.board.items() if v == 1]  # Freddy asks Ifan
 
         # the node map, by default the distance between one piece and its neighbor is one
         # adjustment to the default of distance, the same color will be zero, enemy color will be a large number
@@ -758,27 +849,28 @@ class Agent:
 
         return dijkstra2_r(game, player, square, distance, unvisited, destination)
 
-    def eval_MCTS(self, game, times_of_loop, cp=1):
+    def mcts(self, game):
         """MCTS
 
         Args:
             game: A HexBoard instance.
             times_of_loop: Int. iteration times of every move
             cp: A parameter of UCT formula.
-        """                    
+        """
+        times_of_loop, cp = self.N, self.Cp
         root = MCTS_hex(game, self.color)
         for i in range(times_of_loop):
             root.BestUCT_Childnode(cp)
         score = {}
         for childnode, nodeobject in root.children.items():
             if nodeobject.visit_count == 0:
-                nodeobject.visit_count = -1000 # Assume we do not pick unexplore node
+                nodeobject.visit_count = -1000 # Assume we do not pick unexplored node
             score[childnode] = nodeobject.value_sum/nodeobject.visit_count
-        return max(score, key= score.get)[-1]
+        return {'moves': [max(score, key= score.get)[-1]]}
 
 
 class MCTS_hex:
-    def __init__(self, game, col, parent = "root has no parent",ID_tuple = ("root",)):
+    def __init__(self, game, col, parent="root has no parent", ID_tuple=("root",)):
         """MCTS algorithm: get the node.
 
         Args:
@@ -822,7 +914,6 @@ class MCTS_hex:
             movingstate.place(a_tuple, player)
             nodes_name = self.ID_tuple + (a_tuple,)
             self.children[nodes_name]= MCTS_hex(game = movingstate, col = enemy_player, parent = self,ID_tuple = nodes_name)
-
             
     def rollout(self): 
         """To roll out  to the terminal and get the reward [-1, 0 , 1]"""                   
