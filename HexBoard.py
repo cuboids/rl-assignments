@@ -4,6 +4,7 @@ import numpy as np
 import random
 from trueskill import Rating, rate_1vs1
 from itertools import product  # For evalue_fun
+from matplotlib import pyplot as plt
 # from chooseEval import evaluateScore  # TO BE DEPRECIATED
 
 
@@ -60,6 +61,7 @@ class Agent:
         else:
             self.rating, opponent.rating = rate_1vs1(rating2, self.rating)
         self.rating_history.append(self.rating)
+        opponent.rating_history.append(opponent.rating)
 
     def make_move(self, game):
         """Let's the agent calculate a move based on it's searchby strategy
@@ -515,7 +517,41 @@ class Agent:
             return dijkstra2_r(game, player, next_square, distance, unvisited, destination)
 
         return dijkstra2_r(game, player, square, distance, unvisited, destination)
+    
+    
+    def plot_rating_history(self, *args):
+        """Plot agents rating history"""
+        game = range(1, len(self.rating_history)+1)
+        mu = [rating.mu for rating in self.rating_history]
+        sigma = [rating.sigma for rating in self.rating_history]
+        ci_lower = [a - b for a, b in zip(mu, sigma)]
+        ci_upper = [a + b for a, b in zip(mu, sigma)]
 
+        fig, ax = plt.subplots()
+        
+        ax.plot(game, mu, label=self.name, color='k')
+        ax.fill_between(game, ci_lower, ci_upper, alpha=0.1)
+        ax.plot(game, mu, 'o', markersize=3, color='k')
+
+        if not args == ():
+            linestyles = ['--', '.', '-.']
+            players = args
+            for player in players:
+
+                game = range(1, len(player.rating_history)+1)
+                mu = [rating.mu for rating in player.rating_history]
+                sigma = [rating.sigma for rating in player.rating_history]
+                ci_lower = [a - b for a, b in zip(mu, sigma)]
+                ci_upper = [a + b for a, b in zip(mu, sigma)]
+
+                ax.plot(game, mu, label=player.name, color='k', linestyle=linestyles[players.index(player)])
+                ax.fill_between(game, ci_lower, ci_upper, alpha=0.1)
+        
+        ax.legend()
+        ax.set_xlabel('Number of games (N)')
+        ax.set_ylabel('Trueskill rating')
+        
+        
 
 class HexBoard:
     BLUE = 1  # value take up by a position
