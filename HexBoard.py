@@ -160,7 +160,6 @@ class Agent:
         fig, ax = plt.subplots()
         ax.plot(game, mu, label=self.name, color='k')
         ax.fill_between(game, ci_lower, ci_upper, alpha=0.1)
-        ax.plot(game, mu, 'o', markersize=3, color='k')
         # Plot other agents (if any)
         if not args == ():
             linestyles = ['--', '.', '-.']
@@ -176,6 +175,7 @@ class Agent:
         ax.legend()
         ax.set_xlabel('Number of games (N)')
         ax.set_ylabel('Trueskill rating')
+        ax.axhline(y=25, color='r', linestyle='-', linewidth=1)
 
     def analyse_position(self, game):
         """Let the agent evaluate a position
