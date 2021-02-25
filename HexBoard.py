@@ -81,15 +81,18 @@ class Agent:
     Hash = hashlib.sha512
     MAX_HASH_PLUS_ONE = 2 ** (Hash().digest_size * 8)
 
-    def __init__(self, name=None, depth=3, searchby="random", timelimit=2):
+    def __init__(self, name=None, depth=3, searchby="random", hyperpars=None):
         """Sets up the agent.
 
         Args:
             name: a string representing the name of the agent
             depth: an integer representing the search depth
             searchby: a string indicating the search method.
-                Currently supports "random", "minimax", "alphabeta", "alphabetaIDTT"
-            timelimit: an integer representing timelimit for anytime search algorithm, including "alphabetaIDTT"
+                Currently supports "random", "minimax", "alphabeta", "alphabetaIDTT", and "mcts"
+            hyperpars: a dictionary with hyperparameters.
+                timilimit: integer representing timelimit for anytime search algorithm, including "alphabetaIDTT"
+                N: (used in MCTS)
+                Cp: (used in MCTS)
         """
         if name is None:
             self.name = names.get_first_name()
@@ -97,15 +100,20 @@ class Agent:
             self.name = "Agent Smith"
         else:
             self.name = name
+        if hyperpars is None:
+            hyperpars = {'timelimit': 2, 'N': 250, 'Cp': 2}
         self.depth = depth
         self.game = 0
         self.rating = Rating()
         self.rating_history = [self.rating]
         self.searchby = searchby
-        self.timelimit = timelimit
+        self.timelimit = hyperpars['timelimit']
         self.n_turns = 0
         self.color = None
         self.seed = 0
+        self.timelimit = 2
+        self.N = hyperpars['N']  # For MCTS
+        self.Cp = hyperpars['Cp']  # For MCTS
 
     def make_seed(self):
         """Generate a reproducible seed based on the Agent's name, turn, and game.
@@ -339,7 +347,7 @@ class Agent:
 
         elif not depth:  # Case: reaching the search tree depth limit
             n['type'] = 'HEURISTIC'
-            n['score'] = self.eval_dijkstra2(n['state'])
+            n['score'] = self.eval_dijkstra1(n['state'], p)
             if self.DEBUG:
                 print(' Leaf SCORE (DEPTH==0) =', n['score'], '\n')
             return n
@@ -648,8 +656,8 @@ class Agent:
         size_board = game.size
 
         samplespace = list(product([i for i in range(size_board)], [i for i in range(size_board)]))
-        redcoordinate = [k for k, v in game.game.items() if v == 2]  # Freddy asks Ifan
-        bluecoordinate = [k for k, v in game.game.items() if v == 1]  # Freddy asks Ifan
+        redcoordinate = [k for k, v in game.board.items() if v == 2]  # Freddy asks Ifan
+        bluecoordinate = [k for k, v in game.board.items() if v == 1]  # Freddy asks Ifan
 
         # the node map, by default the distance between one piece and its neighbor is one
         # adjustment to the default of distance, the same color will be zero, enemy color will be a large number
@@ -758,27 +766,28 @@ class Agent:
 
         return dijkstra2_r(game, player, square, distance, unvisited, destination)
 
-    def eval_MCTS(self, game, times_of_loop, cp=1):
+    def mcts(self, game):
         """MCTS
 
         Args:
             game: A HexBoard instance.
             times_of_loop: Int. iteration times of every move
             cp: A parameter of UCT formula.
-        """                    
+        """
+        times_of_loop, cp = self.N, self.Cp
         root = MCTS_hex(game, self.color)
         for i in range(times_of_loop):
             root.BestUCT_Childnode(cp)
         score = {}
         for childnode, nodeobject in root.children.items():
             if nodeobject.visit_count == 0:
-                nodeobject.visit_count = -1000 # Assume we do not pick unexplore node
+                nodeobject.visit_count = -1000 # Assume we do not pick unexplored node
             score[childnode] = nodeobject.value_sum/nodeobject.visit_count
-        return max(score, key= score.get)[-1]
+        return {'moves': [max(score, key= score.get)[-1]]}
 
 
 class MCTS_hex:
-    def __init__(self, game, col, parent = "root has no parent",ID_tuple = ("root",)):
+    def __init__(self, game, col, parent="root has no parent", ID_tuple=("root",)):
         """MCTS algorithm: get the node.
 
         Args:
@@ -822,7 +831,6 @@ class MCTS_hex:
             movingstate.place(a_tuple, player)
             nodes_name = self.ID_tuple + (a_tuple,)
             self.children[nodes_name]= MCTS_hex(game = movingstate, col = enemy_player, parent = self,ID_tuple = nodes_name)
-
             
     def rollout(self): 
         """To roll out  to the terminal and get the reward [-1, 0 , 1]"""                   

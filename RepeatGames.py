@@ -98,6 +98,8 @@ def play_hex(ngames=None, player1=Agent(name="Alice"), player2=Agent(name="Bob")
 
 example = True
 if example:
-    Alice = Agent(name='Alice', searchby="alphabetaIDTT")
-    Bob = Agent(name='Bob', searchby="alphabeta")
+    Alice = Agent(name='Alice', searchby='alphabeta')
+    Bob = Agent(name='Bob', searchby="mcts")
     play_hex(10, Alice, Bob, 5)
+    print("Rating Alice:", Alice.rating)
+    print("Rating Bob:", Bob.rating)
