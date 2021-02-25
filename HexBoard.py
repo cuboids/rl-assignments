@@ -113,6 +113,7 @@ class Agent:
         self.color = None
         self.seed = 0
         self.timelimit = 2
+        self.n = None  # last node
         self.N = hyperpars['N']  # For MCTS
         self.Cp = hyperpars['Cp']  # For MCTS
 
@@ -151,7 +152,8 @@ class Agent:
         """Let the agent evaluate a position
         Returns more detailed information than make_move.
         """
-        return eval('self.' + self.searchby + '(game)')
+        self.n = eval('self.' + self.searchby + '(game)')
+        return self.n
 
     def make_move(self, game):
         """Let's the agent calculate a move based on it's searchby strategy
@@ -159,7 +161,11 @@ class Agent:
         Args:
             game: position of type HexBoard.
         """
-        n = eval('self.' + self.searchby + '(game)')
+        if self.n is not None:
+            n = self.n
+        else:
+            n = self.analyse_position(game)
+        self.n = None
         # alphabetaIDTT returns a tuple (n, tt)
         if isinstance(n, tuple):
             n = n[0]
