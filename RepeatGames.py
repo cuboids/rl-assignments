@@ -62,7 +62,7 @@ def play_hex(ngames=None, player1=Agent(name="Alice"), player2=Agent(name="Bob")
             turn = int(n_turns % 2 != game_i % 2)
             player1.n_turns = player2.n_turns = n_turns
             if analysis:
-                nodes[turn].append(players[turn].analyse_position(game))
+                nodes[n_turns].append(players[turn].analyse_position(game))
             move = players[turn].make_move(game)
             game.place(move, players[turn].color)
 
