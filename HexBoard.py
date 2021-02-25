@@ -4,6 +4,7 @@ import math
 import names  # For giving random names to agents. See https://pypi.org/project/names/
 import numpy as np
 import random
+import time
 from itertools import permutations
 from itertools import product  # For evalue_fun
 from trueskill import Rating, rate_1vs1
@@ -368,14 +369,14 @@ class Agent:
                     new_state.print()  # Eyetest child state
                 child_n = self.alphabeta(new_state, n['depth'] - 1, 'MIN', p, a, b)  # Generate child node
                 n['children'].update({str(child_move): child_n})  # Store children node
-                if child_n['score'] > g_max:  # Update current node to back up from the maximum child node
+                if child_n['score'] == g_max:
+                    n['moves'].append(child_move)
+                elif child_n['score'] > g_max:  # Update current node to back up from the maximum child node
                     g_max = child_n['score']
                     n['score'] = child_n['score']
                     n['move'] = child_move
                     n['moves'] = [child_move]
                     a = max(a, g_max)  # Update alpha, traces the g_max value
-                elif child_n['score'] == g_max:
-                    n['moves'].append(child_move)
                 if self.DEBUG:
                     print(f'End of PLAYER {p} DEPTH {n["depth"]} {n["type"]} node: Child move {child_move}', end=" ")
                     print(f'score = {child_n["score"]}; Updated optimal move {n["move"]} score = {n["score"]}.')
@@ -407,14 +408,14 @@ class Agent:
                     new_state.print()
                 child_n = self.alphabeta(new_state, n['depth'] - 1, 'MAX', p, a, b)
                 n['children'].update({str(child_move): child_n})  # Store children node
-                if child_n['score'] < g_min:  # Update current node to back up from the minimum child node
+                if child_n['score'] == g_min:
+                    n['moves'].append(child_move)
+                elif child_n['score'] < g_min:  # Update current node to back up from the minimum child node
                     g_min = child_n['score']
                     n['score'] = child_n['score']
                     n['move'] = child_move
                     n['moves'] = [child_move]
                     b = min(b, g_min)  # Update beta, traces the g_min value
-                elif child_n['score'] == g_min:
-                    n['moves'].append(child_move)
                 if self.DEBUG:
                     print(f'End of PLAYER {p} DEPTH {n["depth"]} {n["type"]} node: Child move {child_move}', end=" ")
                     print(f'score = {child_n["score"]}; Updated optimal move {n["move"]} score = {n["score"]}.')
@@ -433,8 +434,56 @@ class Agent:
 
         return n
 
-    def alphabetaIDTT(self, game, depth=None, p=None, ntype='MAX', a=-np.inf, b=np.inf,
-                      tt=TranspositionTable()):
+    def alphabetaIDTT(self, game):
+        """
+        Calls alpha-beta iteratively, starts at shallow depth and increase depth iteratively
+        The function will terminate on following conditions:
+        EITHER 1) kernel is interuppted OR 2) timeout OR 3) search depth exceeds board empty positions.
+        Parameters:
+            game (HexBoard object):
+            timelimit (int): search time limit in seconds. SUGGEST testing with timelimit from 1 first
+            p (int): carry to alphabeta(), refer to alphabeta() docstring
+        Ouput:
+            node (dict): {'state', 'depth', 'children', 'type', 'score', 'move'}
+        """
+        # Initialize
+        timelimit = self.timelimit
+        timeout = time.time() + timelimit  # Define timeout criteria
+        depth = 1  # Start with shallow depth
+        tt = TranspositionTable()  # Initialize search with empty
+        result_node = ()
+        # print('USER NOTE: Interrupt the kernel to terminate search. \n')
+
+        try:
+            while True:
+                # print(f'[Iteration status] Start iteration at depth {depth} \n')
+                # Option: alpha-beta + TT
+                result_node, tt = self.ttalphabeta(game=game, tt=tt)  # Use TT from previous search to improve efficiency
+                # Alternative option: alpha-beta
+                # n = alphabeta(board, depth, p)
+                # print(f'[Iteration status] Finish iteration at depth {depth}:', end=" ")
+                # print(f'Best move at root node = {result_node["move"]} \n')
+                if time.time() > timeout:  # WARNING This method is not perfect and only breaks after search completed, may change to raise + class Exception for instant interrupt
+                    print('[Iteration status] Termination: TIMEOUT \n')
+                    print(f'[Iteration report] Return result of completed search at depth {depth} \n')
+                    break
+                if depth == len(game.get_allempty()):
+                    print('[Iteration status] Termination: EXACT SEARCH')
+                    print(f'[Iteration report] Return result of completed search at depth {depth} \n')
+                    break
+                depth += 1  # Increase depth after one iteration
+
+        except KeyboardInterrupt:  # Interrupt kernel, Ctrl+c in console
+            print('[Iteration status] Termination: USER INTERRUPT')
+            print(f'[Iteration report] Return result of completed search at depth {depth - 1} \n')
+            pass
+
+        finally:
+            return result_node  # Normal output for repeat games, TT not required in this case.
+            # return (result_node, tt)  # Return for test only. Conflict with repeat games expected.
+
+    def ttalphabeta(self, game, depth=None, p=None, ntype='MAX', a=-np.inf, b=np.inf,
+                    tt=TranspositionTable()):
         """
         Alpha-Beta search algorithm, to be used with iterationdeepening() and custom class TranspositionTable.
         All debug printouts suppressed.
@@ -522,7 +571,7 @@ class Agent:
                 # new_state.print()
                 # print('\n')
                 # Search OR evaluate child node, update TT
-                child_n, tt = self.alphabetaIDTT(new_state, n['depth'] - 1, p, 'MIN', a, b, tt)
+                child_n, tt = self.ttalphabeta(new_state, n['depth'] - 1, p, 'MIN', a, b, tt)
                 n['children'].update({str(child_move): child_n})  # Store children node to current node
                 if child_n['score'] > g_max:  # Update current node to backtrack from the maximum child node
                     g_max = child_n['score']  # Update max score
@@ -556,7 +605,7 @@ class Agent:
                 # new_state.print()
                 # print('\n')
                 # Child of MIN becomes MAX
-                child_n, tt = self.alphabetaIDTT(new_state, n['depth'] - 1, p, 'MAX', a, b, tt)
+                child_n, tt = self.ttalphabeta(new_state, n['depth'] - 1, p, 'MAX', a, b, tt)
                 n['children'].update({str(child_move): child_n})
                 if child_n['score'] < g_min:  # Update current node to backtrack from the minimum child node
                     g_min = child_n['score']
