@@ -8,6 +8,7 @@ import time
 from itertools import permutations
 from itertools import product  # For evalue_fun
 from trueskill import Rating, rate_1vs1
+import matplotlib.pyplot as plt 
 # from chooseEval import evaluateScore  # TO BE DEPRECIATED
 
 
