@@ -1,16 +1,77 @@
 import copy
+import hashlib
+import math
 import names  # For giving random names to agents. See https://pypi.org/project/names/
 import numpy as np
 import random
-import math 
+import time
 from itertools import permutations
+from itertools import product  # For evalue_fun
 from trueskill import Rating, rate_1vs1
+import matplotlib.pyplot as plt 
 # from chooseEval import evaluateScore  # TO BE DEPRECIATED
 
 
-class Human:
-    # Should we make a separate class for humans?
-    pass
+class TranspositionTable:
+    """Contains a dict that uses board state as keys, and stores info about best moves"""
+
+    def __init__(self):
+        """Constructor, initiate the transposition table"""
+        self.table = {}
+
+    def is_empty(self):
+        """Check if table is empty"""
+        return not self.table
+
+    def store(self, n):
+        """Store result node information to TT"""
+        key = n['state'].convert_key()
+        if key in self.table.keys():  # Board state already exists in TT
+            # print('[TT] Found transpositions')
+            # Update TT entry
+            if n['depth'] >= self.table[key]['depth']:  # Compare search depth
+                self.table[key]['depth'] = n['depth']
+                self.table[key]['bestmove'] = n['move']
+                self.table[key]['bestmoves'] = n['moves']
+                self.table[key]['score'] = n['score']
+                # print('[TT] Updated depth, best move, score in entry')
+        else:  # Create new TT entry
+            value = {'state': n['state'], 'depth': n['depth'],
+                     'bestmove': n['move'], 'bestmoves': n['moves'], 'score': n['score']}
+            key = n['state'].convert_key()
+            self.table.update({key: value})
+            # print('[TT] Created new entry')
+
+    def lookup(self, n, depth):
+        """Return look up result from TT"""
+        hit = False
+        key = n['state'].convert_key()
+        if key in self.table.keys():  # Found tranposition in TT
+            # Transposition has larger or equal search depth than current search
+            if depth <= self.table[key]['depth']:
+                transposition = self.table[key]
+                hit = True  # Found transposition with useful depth, can return score
+                score = transposition['score']
+                bestmove = transposition['bestmove']
+                bestmoves = transposition['bestmoves']
+                return hit, score, bestmoves
+            # Transposition has smaller search depth than current search
+            else:
+                transposition = self.table[key]
+                hit = False
+                score = None  # Score in TT not useful
+                bestmove = transposition['bestmove']  # Return best move to improve move ordering
+                bestmoves = transposition['bestmoves']
+                return hit, score, bestmoves
+        else:  # Transposition not found
+            hit = False
+            score = None
+            bestmove = ()
+            bestmoves = ()
+            return hit, score, bestmoves
+
+    def count_entry(self):
+        return len(self.table.keys())
 
 
 class Agent:
@@ -18,26 +79,52 @@ class Agent:
     # Set DEBUG to True if you want to debug.
     # WARNING: this will print way too much.
     DEBUG = False
+    RANDOM_MOVE = True
+    Hash = hashlib.sha512
+    MAX_HASH_PLUS_ONE = 2 ** (Hash().digest_size * 8)
 
-    def __init__(self, name=None, depth=3, searchby="random", timelimit=2):
+    def __init__(self, name=None, depth=3, searchby="random", hyperpars=None):
         """Sets up the agent.
 
         Args:
+            name: a string representing the name of the agent
             depth: an integer representing the search depth
             searchby: a string indicating the search method.
-              Currently supports "random", "human", "minimax", "alphabeta", "alphabetaIDTT"
-            timelimit: an integer representing timelimit for anytime search algorithm, including "alphabetaIDTT"
+                Currently supports "random", "minimax", "alphabeta", "alphabetaIDTT", and "mcts"
+            hyperpars: a dictionary with hyperparameters.
+                timilimit: integer representing timelimit for anytime search algorithm, including "alphabetaIDTT"
+                N: (used in MCTS)
+                Cp: (used in MCTS)
         """
         if name is None:
             self.name = names.get_first_name()
+        elif name == "matrix":
+            self.name = "Agent Smith"
         else:
             self.name = name
+        if hyperpars is None:
+            hyperpars = {'timelimit': 2, 'N': 250, 'Cp': 2}
         self.depth = depth
+        self.game = 0
         self.rating = Rating()
         self.rating_history = [self.rating]
         self.searchby = searchby
-        self.timelimit = timelimit
+        self.timelimit = hyperpars['timelimit']
+        self.n_turns = 0
         self.color = None
+        self.seed = 0
+        self.timelimit = 2
+        self.n = None  # last node
+        self.N = hyperpars['N']  # For MCTS
+        self.Cp = hyperpars['Cp']  # For MCTS
+
+    def make_seed(self):
+        """Generate a reproducible seed based on the Agent's name, turn, and game.
+        Based on https://stackoverflow.com/a/44556106 (reproducible hashes).
+        """
+        hash_digest = self.Hash(self.name.encode()).digest()
+        hash_int = int.from_bytes(hash_digest, 'big')
+        return hash_int/self.MAX_HASH_PLUS_ONE + 1/(self.n_turns + 1) + self.game/10000 + self.seed
 
     def set_color(self, col):
         """Gives agent a color
@@ -61,6 +148,41 @@ class Agent:
         else:
             self.rating, opponent.rating = rate_1vs1(rating2, self.rating)
         self.rating_history.append(self.rating)
+        opponent.rating_history.append(opponent.rating)
+        
+    def plot_rating_history(self, *args):
+        """Plot agents rating history"""
+        game = range(1, len(self.rating_history)+1)
+        mu = [rating.mu for rating in self.rating_history]
+        sigma = [rating.sigma for rating in self.rating_history]
+        ci_lower = [a - b for a, b in zip(mu, sigma)]
+        ci_upper = [a + b for a, b in zip(mu, sigma)]
+        fig, ax = plt.subplots()
+        ax.plot(game, mu, label=self.name, color='k')
+        ax.fill_between(game, ci_lower, ci_upper, alpha=0.1)
+        # Plot other agents (if any)
+        if not args == ():
+            linestyles = ['--', '.', '-.']
+            players = args
+            for player in players:
+                game = range(1, len(player.rating_history)+1)
+                mu = [rating.mu for rating in player.rating_history]
+                sigma = [rating.sigma for rating in player.rating_history]
+                ci_lower = [a - b for a, b in zip(mu, sigma)]
+                ci_upper = [a + b for a, b in zip(mu, sigma)]
+                ax.plot(game, mu, label=player.name, color='k', linestyle=linestyles[players.index(player)])
+                ax.fill_between(game, ci_lower, ci_upper, alpha=0.1)
+        ax.legend()
+        ax.set_xlabel('Number of games (N)')
+        ax.set_ylabel('Trueskill rating')
+        ax.axhline(y=25, color='r', linestyle='-', linewidth=1)
+
+    def analyse_position(self, game):
+        """Let the agent evaluate a position
+        Returns more detailed information than make_move.
+        """
+        self.n = eval('self.' + self.searchby + '(game)')
+        return self.n
 
     def make_move(self, game):
         """Let's the agent calculate a move based on it's searchby strategy
@@ -68,12 +190,33 @@ class Agent:
         Args:
             game: position of type HexBoard.
         """
-        return eval('self.' + self.searchby + '(game)')['move']
+        if self.n is not None:
+            n = self.n
+        else:
+            n = self.analyse_position(game)
+        self.n = None
+        # alphabetaIDTT returns a tuple (n, tt)
+        if isinstance(n, tuple):
+            n = n[0]
+        return self.select_move(n['moves'])
 
-    @staticmethod
-    def random(game):
+    def select_move(self, moves):
+        """Select a move among equally good moves
+
+        Args:
+            moves: a list of equally good moves.
+        """
+        if self.RANDOM_MOVE:
+            self.make_seed()
+            random.seed(self.make_seed())
+            return random.choices(moves)[0]
+        return moves[0]
+
+    def random(self, game):
         """Let the agent make a random move"""
-        return {'move': random.sample(game.get_allempty(), 1)[0]}
+        self.make_seed()
+        random.seed(self.make_seed())
+        return {'moves': [random.sample(game.get_allempty(), 1)[0]]}
 
     def minimax(self, game, depth=None, ntype=None, p=None):
         """
@@ -86,7 +229,7 @@ class Agent:
             p (int): perspective/player of search tree root, either 1 for HexBoard.BLUE, or 2 for HexBoard.RED
 
         Returns:
-            A dict including state, depth, children, type, score, and move.
+            A dict including state, depth, children, type, score, move (depreciated), and moves.
 
         Further improvements:
             search statistics: nodes searched + cutoffs
@@ -103,7 +246,7 @@ class Agent:
             depth = len(movelist)
 
         # Initialize node
-        n = {'state': game, 'depth': depth, 'children': {}, 'type': ntype}
+        n = {'state': game, 'depth': depth, 'children': {}, 'type': ntype, 'moves': []}
 
         if self.DEBUG:
             print(f'\nNode DEPTH = {n["depth"]} (TYPE = {n["type"]})')
@@ -117,7 +260,7 @@ class Agent:
         # Main loop
         if n['state'].is_game_over():  # Case: gameover at depth >= 0 (do we need to give bonus or penalty to score?)
             n['type'] = 'LEAF'
-            n['score'] = np.inf if n['state'].check_win(self.color) else -np.inf
+            n['score'] = 1000+depth if n['state'].check_win(self.color) else -1000-depth
             if self.DEBUG:
                 print(' Leaf SCORE (LEAF) =', n['score'], '\n')
             return n
@@ -149,6 +292,9 @@ class Agent:
                     g_max = child_n['score']
                     n['score'] = child_n['score']
                     n['move'] = child_move
+                    n['moves'] = [child_move]
+                if child_n['score'] == g_max:
+                    n['moves'].append(child_move)  # Fix deterministic tendencies
                 if self.DEBUG:
                     print(f'End of PLAYER {p} DEPTH {n["depth"]} {n["type"]} node:', end='')
                     print(f'Child move {child_move}', end=' ')
@@ -170,13 +316,15 @@ class Agent:
                 if self.DEBUG:
                     print(' STATE after move:')
                     new_state.print()
-
                 child_n = self.minimax(new_state, n['depth'] - 1, 'MAX', p)
                 n['children'].update({str(child_move): child_n})  # Store children node
                 if child_n['score'] < g_min:  # Update current node to back up from the minimum child node
                     g_min = child_n['score']
                     n['score'] = child_n['score']
                     n['move'] = child_move
+                    n['moves'] = [child_move]
+                if child_n['score'] == g_min:
+                    n['moves'].append(child_move)
                 if self.DEBUG:
                     print(f'End of PLAYER {p} DEPTH {n["depth"]} {n["type"]} node: Child move {child_move}', end=" ")
                     print(f'score = {child_n["score"]}; Updated optimal move {n["move"]} score = {n["score"]}.')
@@ -184,23 +332,483 @@ class Agent:
             print('Error: Nothing to execute.')
             return
 
-        return n  # g is the maximun heuristic function value
+        return n  # g is the maximum heuristic function value
 
-    def alphabeta(self, game):
-        """Let the agent make an alphabeta move"""
-        pass
+    def alphabeta(self, game, depth=None, ntype="MAX", p=None, a=-np.inf, b=np.inf):
+        """
+        Alpha-Beta search algorithm
+        Parameters:
+            game (HexBoard object):
+            depth (int): depth limit of search tree, if depth exceeds empty positions, it will be reduced
+            p (int): perspective/player of search tree root, either 1 for HexBoard.BLUE, or 2 for HexBoard.RED
+            ntype (str): node type, etiher 'MAX' or 'MIN'
+            a (float): alpha value, first input should be -np.inf or very small value, increase upon recursion
+            b (float): beta value, first input should be np.inf or very large value, decrease upon recursion
+        Ouputs:
+            node (dict): {'state', 'depth', 'children', 'type', 'score', 'move'}
+        Further improvements:
+            search statistics: nodes searched + cutoffs
+        """
+        # Movelist for current state
+        movelist = game.get_allempty()
+        if depth is p is None:
+            depth, p = self.depth, self.color
+
+        # For small board and end game, depth limit == full depth
+        if depth > len(movelist):
+            print('WARNING: DEPTH is limited by empty positions in board => set to full depth search.\n')
+            depth = len(movelist)
+
+        # Initialize node
+        n = {'state': game, 'depth': depth, 'children': {}, 'type': ntype, 'moves': [],
+             'children_searched': movelist, 'children_cutoff': []}
+
+        if self.DEBUG:
+            print(f'\nNode DEPTH = {n["depth"]} (TYPE = {n["type"]})')
+            print(' GAME OVER?', n['state'].is_game_over())
+            if depth and not n['state'].is_game_over():
+                print(f' PLAYER {p} to consider EMPTY positions {movelist}')
+            print(f'Start of function: alpha = {a} beta = {b}') # Remove after test
+
+        # Initialize child_count to count children at depth d
+        child_count = 0
+
+        # Main loop
+        if n['state'].is_game_over():  # Case: gameover at depth >= 0 (do we need to give bonus or penalty to score?)
+            n['type'] = 'LEAF'
+            n['score'] = 5000+depth if n['state'].check_win(p) else -5000-depth
+            if self.DEBUG:
+                print(' Leaf SCORE (LEAF) =', n['score'], '\n')
+            return n
+
+        elif not depth:  # Case: reaching the search tree depth limit
+            n['type'] = 'HEURISTIC'
+            n['score'] = self.eval_dijkstra1(n['state'], p)
+            if self.DEBUG:
+                print(' Leaf SCORE (DEPTH==0) =', n['score'], '\n')
+            return n
+
+        elif n['type'] == 'MAX':  # Max node
+            g_max = -np.inf  # Initialize max score with very small
+            n['score'] = g_max
+            for child_move in movelist:  # Search all children and compare score
+                child_count = movelist.index(child_move) + 1
+                if self.DEBUG:
+                    print(f'\nFrom DEPTH {n["depth"]} branch --> Child {child_count}:')
+                    print(f'\nPLAYER {p} moves as {child_move} STATE before move:')
+                    n['state'].print()
+                new_state = copy.deepcopy(n['state'])  # Copy state to avoid modifying current state
+                new_state.place(child_move, p)  # Generate child state
+                if self.DEBUG:
+                    print(' STATE after move:')
+                    new_state.print()  # Eyetest child state
+                child_n = self.alphabeta(new_state, n['depth'] - 1, 'MIN', p, a, b)  # Generate child node
+                n['children'].update({str(child_move): child_n})  # Store children node
+                if child_n['score'] == g_max:
+                    n['moves'].append(child_move)
+                elif child_n['score'] > g_max:  # Update current node to back up from the maximum child node
+                    g_max = child_n['score']
+                    n['score'] = child_n['score']
+                    n['move'] = child_move
+                    n['moves'] = [child_move]
+                    a = max(a, g_max)  # Update alpha, traces the g_max value
+                if self.DEBUG:
+                    print(f'End of PLAYER {p} DEPTH {n["depth"]} {n["type"]} node: Child move {child_move}', end=" ")
+                    print(f'score = {child_n["score"]}; Updated optimal move {n["move"]} score = {n["score"]}.')
+                if a >= b:
+                    n['children_searched'] = movelist[:child_count]
+                    n['children_cutoff'] = movelist[child_count:]
+                    if self.DEBUG:
+                        print(f'Beta cutoff takes place at alpha = {a} beta = {b}')
+                        print(f'Beta cutoff takes place at move {child_move};', end=' ')
+                        print(f'at child {child_count}; pruning {len(movelist) - child_count}', end=' ')
+                        print(f'out of {len(movelist)} children')
+                    break  # Beta cutoff, g >= b
+
+        elif n['type'] == 'MIN':  # Min node
+            g_min = np.inf  # Initialize min score with very large
+            n['score'] = g_min
+            for child_move in movelist:
+                child_count += 1
+                if self.DEBUG:
+                    print(f'\nFrom DEPTH {n["depth"]} branch --> Child {child_count}:')
+                    print(f'PLAYER {p} moves at {child_move} STATE before move:')
+                    n['state'].print()
+                new_p = [1, 2]
+                new_p.remove(p)  # Reverse perspective for child node
+                new_state = copy.deepcopy(n['state'])
+                new_state.place(child_move, new_p[0])  # Generate child state
+                if self.DEBUG:
+                    print(' STATE after move:')
+                    new_state.print()
+                child_n = self.alphabeta(new_state, n['depth'] - 1, 'MAX', p, a, b)
+                n['children'].update({str(child_move): child_n})  # Store children node
+                if child_n['score'] == g_min:
+                    n['moves'].append(child_move)
+                elif child_n['score'] < g_min:  # Update current node to back up from the minimum child node
+                    g_min = child_n['score']
+                    n['score'] = child_n['score']
+                    n['move'] = child_move
+                    n['moves'] = [child_move]
+                    b = min(b, g_min)  # Update beta, traces the g_min value
+                if self.DEBUG:
+                    print(f'End of PLAYER {p} DEPTH {n["depth"]} {n["type"]} node: Child move {child_move}', end=" ")
+                    print(f'score = {child_n["score"]}; Updated optimal move {n["move"]} score = {n["score"]}.')
+                if a >= b:
+                    n['children_searched'] = movelist[:child_count]
+                    n['children_cutoff'] = movelist[child_count:]
+                    if self.DEBUG:
+                        print(f'Alpha cutoff takes place at alpha = {a} beta = {b}')
+                        print(f'Alpha cutoff takes place at move {child_move};', end=" ")
+                        print(f'at child {child_count}; pruning {len(movelist) - child_count}', end=' ')
+                        print(f'out of {len(movelist)} children')
+                    break  # Alpha cutoff, a >= g
+        else:
+            print('Error: Nothing to execute.')
+            return
+
+        return n
 
     def alphabetaIDTT(self, game):
-        """Let the agent make an alphabeta move with IT and TTs"""
-        pass
+        """
+        Calls alpha-beta iteratively, starts at shallow depth and increase depth iteratively
+        The function will terminate on following conditions:
+        EITHER 1) kernel is interuppted OR 2) timeout OR 3) search depth exceeds board empty positions.
+        Parameters:
+            game (HexBoard object):
+            timelimit (int): search time limit in seconds. SUGGEST testing with timelimit from 1 first
+            p (int): carry to alphabeta(), refer to alphabeta() docstring
+        Ouput:
+            node (dict): {'state', 'depth', 'children', 'type', 'score', 'move'}
+        """
+        # Initialize
+        timelimit = self.timelimit
+        timeout = time.time() + timelimit  # Define timeout criteria
+        depth = 1  # Start with shallow depth
+        tt = TranspositionTable()  # Initialize search with empty
+        result_node = ()
+        # print('USER NOTE: Interrupt the kernel to terminate search. \n')
 
-    def dijkstra(self, game):
-        """Evaluate position with the Dijkstra algorithm"""
-        return
+        try:
+            while True:
+                # print(f'[Iteration status] Start iteration at depth {depth} \n')
+                # Option: alpha-beta + TT
+                result_node, tt = self.ttalphabeta(game=game, tt=tt)  # Use TT from previous search to improve efficiency
+                # Alternative option: alpha-beta
+                # n = alphabeta(board, depth, p)
+                # print(f'[Iteration status] Finish iteration at depth {depth}:', end=" ")
+                # print(f'Best move at root node = {result_node["move"]} \n')
+                if time.time() > timeout:  # WARNING This method is not perfect and only breaks after search completed, may change to raise + class Exception for instant interrupt
+                    print('[Iteration status] Termination: TIMEOUT \n')
+                    print(f'[Iteration report] Return result of completed search at depth {depth} \n')
+                    break
+                if depth == len(game.get_allempty()):
+                    print('[Iteration status] Termination: EXACT SEARCH')
+                    print(f'[Iteration report] Return result of completed search at depth {depth} \n')
+                    break
+                depth += 1  # Increase depth after one iteration
 
-    def human(self, game):
-        """Should humans be a type of agent or a separate class?"""
-        pass
+        except KeyboardInterrupt:  # Interrupt kernel, Ctrl+c in console
+            print('[Iteration status] Termination: USER INTERRUPT')
+            print(f'[Iteration report] Return result of completed search at depth {depth - 1} \n')
+            pass
+
+        finally:
+            return result_node  # Normal output for repeat games, TT not required in this case.
+            # return (result_node, tt)  # Return for test only. Conflict with repeat games expected.
+
+    def ttalphabeta(self, game, depth=None, p=None, ntype='MAX', a=-np.inf, b=np.inf,
+                    tt=TranspositionTable()):
+        """
+        Alpha-Beta search algorithm, to be used with iterationdeepening() and custom class TranspositionTable.
+        All debug printouts suppressed.
+        Parameters:
+            game (HexBoard object):
+            depth (int): depth limit of search tree, if depth exceeds empty positions, it will be reduced
+            p (int): perspective/player of search tree root, either 1 for HexBoard.BLUE, or 2 for HexBoard.RED
+            ntype (str): node type, etiher 'MAX' or 'MIN'
+            a (float): alpha value, first input should be -np.inf or very small value, increase upon recursion
+            b (float): beta value, first input should be np.inf or very large value, decrease upon recursion
+            tt (TranspositionTable obj): initial value at root = {}
+        Ouputs:
+            node (dict): {'state', 'depth', 'children', 'type', 'score', 'move'}
+        Further improvements:
+            search statistics: nodes searched + cutoffs
+        """
+        # Movelist for current state
+        movelist = game.get_allempty()
+        if depth is p is None:
+            depth, p = self.depth, self.color
+
+        # For small board and end game, depth limit == full depth
+        if depth > len(movelist):
+            print('WARNING: DEPTH is limited by empty positions in board => set to full depth search.\n')
+            depth = len(movelist)
+
+        # Initialize node
+        n = {'state': game, 'depth': depth, 'children': {}, 'type': ntype, 'moves': []}
+
+        # Print intial node info
+        # print(f'Start of {n["type"]} node DEPTH = {n["depth"]}')
+        # print(f'_Is the state of node GAME OVER: {n["state"].game_over}')
+        # if (depth != 0) and not (n['state'].is_game_over()):
+        #    print(f'_PLAYER {p} to consider EMPTY positions: {movelist}')
+        # print('\n')
+
+        # Look up transposition table for node and depth d
+        tt_hit, tt_score, tt_bestmoves = tt.lookup(n, depth)
+        # print(f'TT lookup returns hit: {tt_hit}, score: {tt_score}, best move: {tt_bestmove} \n')
+
+        if tt_hit:  # Found transposition at >= current search depth, copy and return TT result
+            n['type'] = 'TT : ' + n['state'].convert_key()
+            n['score'] = tt_score
+            n['moves'] = tt_bestmoves
+            # print('Found transposition at >= current search depth, copy and return TT result. \n')
+            return n, tt
+
+        # Update move list to search best move in TT first
+        for tt_bestmove in tt_bestmoves:
+            if tt_bestmove in movelist:
+                # print('Best move is found in TT. Improve move ordering:')
+                # print(f'Original movelist: {movelist}')
+                movelist.remove(tt_bestmove)  # Remove best move in movelist
+                movelist.insert(0, tt_bestmove)  # Insert best move to the first of movelist
+                # print(f'New movelist: {movelist} \n')
+
+        # Main loop
+        if n['state'].is_game_over():  # Case: gameover at depth >= 0 (do we need to give bonus or penalty to score?)
+            # print('This is a LEAF node')
+            n['type'] = 'LEAF'  # Leaf node, Terminal node, no more child because game is over
+            n['score'] = 1000+depth if n['state'].check_win(self.color) else -1000-depth
+            n['move'] = ()  # Store empty () to TT and return
+            # print(f'Report SCORE for LEAF node: {n["score"]} \n')
+            # Store n to TT and return n
+
+        elif depth == 0:  # Case: reaching the search tree depth limit
+            # print('This is a node at DEPTH==0')
+            n['type'] = 'DEPTH==0'
+            n['score'] = self.eval_dijkstra2(n['state'])
+            n['move'] = ()  # Store empty () to TT and return
+            # print(f'Report SCORE for node DEPTH==0: {n["score"]} \n')
+            # Store n to TT and return n
+
+        elif n['type'] == 'MAX':  # Max node
+            # print('This is a MAX node \n')
+            g_max = -np.inf  # Initialize max score with very small
+            n['score'] = g_max
+            for child_move in movelist:  # Search children / subtree
+                # print(f'From DEPTH {n["depth"]} branch --> Child #{movelist.index(child_move)}: \n_PLAYER {p} will make move {child_move}')
+                new_state = copy.deepcopy(n['state'])  # Copy state to aviod modifying node state
+                new_state.place(child_move, p)  # Generate child state
+                # print('_BEFORE move (current state):')
+                # n['state'].print()
+                # print('_AFTER move (child state):')
+                # new_state.print()
+                # print('\n')
+                # Search OR evaluate child node, update TT
+                child_n, tt = self.ttalphabeta(new_state, n['depth'] - 1, p, 'MIN', a, b, tt)
+                n['children'].update({str(child_move): child_n})  # Store children node to current node
+                if child_n['score'] > g_max:  # Update current node to backtrack from the maximum child node
+                    g_max = child_n['score']  # Update max score
+                    n['score'] = child_n['score']  # Store to return
+                    n['move'] = child_move  # Store to return
+                    n['moves'] = [child_move]
+                    a = max(a, g_max)  # Update alpha, traces the g_max value among siblings
+                elif child_n['score'] == g_max:
+                    n['moves'].append(child_move)
+                # print(f'End of child #{movelist.index(child_move)} move {child_move} for PLAYER {p} {n["type"]} node at DEPTH {n["depth"]}:', end=" ")
+                # print(f'child score = {child_n["score"]}; Updated optimal move {n["move"]} has score = {n["score"]}. \n')
+                # print(f'Bounds: alpha = {a} beta = {b} \n')
+                if a >= b:  # Check Beta cutoff
+                    # print(f'Beta cutoff takes place at move {child_move}; at child {movelist.index(child_move)};', end=" ")
+                    # print(f'pruning {len(movelist) - movelist.index(child_move)} out of {len(movelist)} children \n')
+                    break  # Beta cutoff, stop searching other sibling
+
+        elif n['type'] == 'MIN':  # Min node
+            # print('This is a MIN node \n')
+            g_min = np.inf  # Initialize min score with very large
+            n['score'] = g_min
+            for child_move in movelist:
+                # print(f'From DEPTH {n["depth"]} branch --> Child #{movelist.index(child_move)}: \n_PLAYER {p} will make move {child_move}')
+                new_p = [1, 2]
+                new_p.remove(p)
+                new_state = copy.deepcopy(n['state'])
+                new_state.place(child_move, new_p[0])
+                # print('_BEFORE move (current state):')
+                # n['state'].print()
+                # print('_AFTER move (child state):')
+                # new_state.print()
+                # print('\n')
+                # Child of MIN becomes MAX
+                child_n, tt = self.ttalphabeta(new_state, n['depth'] - 1, p, 'MAX', a, b, tt)
+                n['children'].update({str(child_move): child_n})
+                if child_n['score'] < g_min:  # Update current node to backtrack from the minimum child node
+                    g_min = child_n['score']
+                    n['score'] = child_n['score']
+                    n['move'] = child_move
+                    n['moves'] = [child_move]
+                    b = min(b, g_min)  # Update beta, traces the g_min value among siblings
+                elif child_n['score'] == g_min:
+                    n['moves'].append(child_move)
+                # print(f'End of child #{movelist.index(child_move)} move {child_move} for PLAYER {p} {n["type"]} node at DEPTH {n["depth"]}:', end=" ")
+                # print(f'child score = {child_n["score"]}; Updated optimal move {n["move"]} has score = {n["score"]}. \n')
+                # print(f'Bounds: alpha = {a} beta = {b} \n')
+                if a >= b:
+                    # print(f'Alpha cutoff takes place at move {child_move}; at child {movelist.index(child_move)};', end=" ")
+                    # print(f'pruning {len(movelist) - movelist.index(child_move)} out of {len(movelist)} children \n')
+                    break  # Alpha cutoff, stop searching other sibling
+        else:
+            print('SEARCH ERROR: Node type is unknown')
+            return
+
+        tt.store(n)  # Store search result of this node (state) to TT, and return
+        # print(f'TT stored; Total # of entries in TT = {tt.count_entry()} \n')
+
+        return n, tt
+
+    def dijkstra1(self, game, graph, start, player):
+        """
+        Evaluate position with the Dijkstra algorithm
+
+        Args:
+            board: HexBoard object
+            graph: node map(see evalue function for explannation)
+            start: a tuple containing coordinate (x, y) of piece
+            player: an integer of either HexBoard.BLUE(==1) or HexBoard.RED(==2)
+
+        Returns:
+
+        """
+        graph = {key: value for (key, value) in graph.items()}  # Create a new dict to avoid the orignal one be replaced
+        shortest_distance = {}  # This is inspired by one youtbuer in the following 16 line of codes(start)
+        unseenNodes = graph
+        inf = 5000
+        size_board = game.size
+
+        for node in unseenNodes:
+            shortest_distance[node] = inf
+        shortest_distance[start] = 0
+        while unseenNodes:
+            minNode = -10
+            for node in unseenNodes:
+                if minNode == -10:
+                    minNode = node
+                elif shortest_distance[node] < shortest_distance[minNode]:
+                    minNode = node
+
+            for childNode, distance in graph[minNode].items():
+                if distance + shortest_distance[minNode] < shortest_distance[childNode]:
+                    shortest_distance[childNode] = distance + shortest_distance[minNode]
+
+            unseenNodes.pop(minNode)  # this is inspired by one youtbuer above the 16 codes(end)
+
+        # In the below, all codes is to identify the smallest distnace for red/blue pieces to the two side border
+        if player == HexBoard.RED:  # red is vertical
+            edgeupper1 = []
+            edgelower2 = []
+
+            for i in range(size_board):
+                a_edge1 = (i, 0)
+                a_edge2 = (i, size_board - 1)
+                edgeupper1.append(a_edge1)
+                edgelower2.append(a_edge2)
+        else:  # blue is horizontal
+            edgeupper1 = []
+            edgelower2 = []
+
+            for i in range(size_board):
+                a_edge1 = (0, i)
+                a_edge2 = (size_board - 1, i)
+                edgeupper1.append(a_edge1)
+                edgelower2.append(a_edge2)
+        target_upper = inf
+        for candidate in edgeupper1:
+            if shortest_distance[candidate] < target_upper:
+                target_upper = shortest_distance[candidate]
+        target_lower = inf
+        for candidate2 in edgelower2:
+            if shortest_distance[candidate2] < target_lower:
+                target_lower = shortest_distance[candidate2]
+        return target_lower + target_upper
+
+    def eval_dijkstra1(self, game, player):
+        """
+        Parameters:
+        board: HexBoard object
+        player: an integer of either HexBoard.BLUE(==1) or HexBoard.RED(==2) , meaning in the perspective of one of them
+        """
+        size_board = game.size
+
+        samplespace = list(product([i for i in range(size_board)], [i for i in range(size_board)]))
+        redcoordinate = [k for k, v in game.board.items() if v == 2]  # Freddy asks Ifan
+        bluecoordinate = [k for k, v in game.board.items() if v == 1]  # Freddy asks Ifan
+
+        # the node map, by default the distance between one piece and its neighbor is one
+        # adjustment to the default of distance, the same color will be zero, enemy color will be a large number
+
+        top_level_map_red = {}  # the node map from red perspecitve
+        second_level_map_red = {}
+
+        for i in samplespace:
+            neigher_node = HexBoard(size_board).get_neighbors(i)
+            for j in neigher_node:
+                if j in redcoordinate:  # special case 1
+                    second_level_map_red[j] = 0
+                elif j in bluecoordinate:  # special case 2, enemy color
+                    second_level_map_red[j] = 5000
+                else:  # default = 1
+                    second_level_map_red[j] = 1
+
+            top_level_map_red[i] = second_level_map_red
+            second_level_map_red = {}
+
+        top_level_map_blue = {}  # the node map from red perspecitve
+        second_level_map_blue = {}
+
+        for i in samplespace:
+            neigher_node = HexBoard(size_board).get_neighbors(i)
+            for j in neigher_node:
+                if j in redcoordinate:  # special case 1, enemy color
+                    second_level_map_blue[j] = 5000
+                elif j in bluecoordinate:  # special case 2
+                    second_level_map_blue[j] = 0
+                else:  # default = 1
+                    second_level_map_blue[j] = 1
+
+            top_level_map_blue[i] = second_level_map_blue
+            second_level_map_blue = {}
+
+        # heuristic_score = remaining_blue_hexes-remaining_red_hexes
+        red_distance_from_win = []
+        blue_distance_from_win = []
+        for a_coordinate in redcoordinate:
+            value = self.dijkstra1(game, top_level_map_red, a_coordinate, player=HexBoard.RED)
+            red_distance_from_win.append(value)
+        for a_coordinate in bluecoordinate:
+            value = self.dijkstra1(game, top_level_map_blue, a_coordinate, player=HexBoard.BLUE)
+            blue_distance_from_win.append(value)
+
+        # Because the shortest path Dijkstra function give us is in terms of current put pieces,
+        # It may larger than sizeboard, But we know sizeboard is the upperbound.
+        # Therefore, we set a constraint here to ensure the shortes path will not larger than sizeboard
+        red_distance_from_win.append(size_board)
+        blue_distance_from_win.append(size_board)
+        heuristic_score = min(blue_distance_from_win) - min(red_distance_from_win)
+
+        # Before return the heuristic_score, we should exclude that the game is over, meaning the player wins or enemy wins
+        # If the player win, we set the return value with a large value.
+        # If the enemy win, we set the return value with a large negative value.
+        allcolor = [HexBoard.RED, HexBoard.BLUE]
+        allcolor.remove(player)  # to get the enemy color
+        if game.check_win(player):  # the player wins
+            return 5000  # Freddy: probably irrelevant now because check_win will be executed before calling evaluation
+        elif game.check_win(allcolor[0]):  # its enemy wins
+            return -5000
+        else:
+            if player == HexBoard.RED:
+                return heuristic_score
+            else:
+                return -heuristic_score
 
     def eval_dijkstra2(self, game):
         return (-1)**self.color * (self.dijkstra2(game, 1) - self.dijkstra2(game, 2))
@@ -241,27 +849,29 @@ class Agent:
             return dijkstra2_r(game, player, next_square, distance, unvisited, destination)
 
         return dijkstra2_r(game, player, square, distance, unvisited, destination)
-    @staticmethod
-    def eval_MCTS(self,game,times_of_loop,cp = 1):
+
+    def mcts(self, game):
         """MCTS
 
         Args:
             game: A HexBoard instance.
             times_of_loop: Int. iteration times of every move
             cp: A parameter of UCT formula.
-        """                    
-        root = MCTS_hex(game,self.color)
+        """
+        times_of_loop, cp = self.N, self.Cp
+        root = MCTS_hex(game, self.color)
         for i in range(times_of_loop):
             root.BestUCT_Childnode(cp)
         score = {}
         for childnode, nodeobject in root.children.items():
             if nodeobject.visit_count == 0:
-                nodeobject.visit_count = -1000 # Assume we do not pick unexplore node
+                nodeobject.visit_count = -1000 # Assume we do not pick unexplored node
             score[childnode] = nodeobject.value_sum/nodeobject.visit_count
-        return max(score, key= score.get)[-1]                  
-                          
+        return {'moves': [max(score, key= score.get)[-1]]}
+
+
 class MCTS_hex:
-    def __init__(self, game, col, parent = "root has no parent",ID_tuple = ("root",)):
+    def __init__(self, game, col, parent="root has no parent", ID_tuple=("root",)):
         """MCTS algorithm: get the node.
 
         Args:
@@ -305,7 +915,6 @@ class MCTS_hex:
             movingstate.place(a_tuple, player)
             nodes_name = self.ID_tuple + (a_tuple,)
             self.children[nodes_name]= MCTS_hex(game = movingstate, col = enemy_player, parent = self,ID_tuple = nodes_name)
-
             
     def rollout(self): 
         """To roll out  to the terminal and get the reward [-1, 0 , 1]"""                   
@@ -419,8 +1028,7 @@ class MCTS_hex:
             if Bestchild.visit_count != 0: 
                 return Bestchild.BestUCT_Childnode() 
 
-                          
-                                                  
+
 class HexBoard:
     BLUE = 1  # value take up by a position
     RED = 2
@@ -585,3 +1193,9 @@ class HexBoard:
             for x in range(self.size):
                 key += str(self.board[x, y])  # read piece state {1/2/3}
         return key
+
+
+class Human:
+    # Should we make a separate class for humans?
+    pass
+
