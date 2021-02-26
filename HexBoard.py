@@ -4,6 +4,7 @@ import math
 import names  # For giving random names to agents. See https://pypi.org/project/names/
 import numpy as np
 import random
+import string
 import time
 from itertools import permutations
 from itertools import product  # For evalue_fun
@@ -1196,7 +1197,30 @@ class HexBoard:
         return key
 
 
-class Human:
+class Human(Agent):
     # Should we make a separate class for humans?
-    pass
+    def make_move(self, game):
 
+        game.print()
+        while True:
+            move = input("Enter your move: ").strip("''").strip('""').strip().casefold()
+            if move == "q":
+                print("Game terminated by user.")
+                game.game_over = True  # Experimental
+                return
+            try:
+                x_coord = int(string.ascii_lowercase.index(move[0]))
+                y_coord = int(move[1:])
+                move = (x_coord, y_coord)
+            except ValueError or KeyError:
+                print("That's not a legal move.")
+                print("Please try again, or press 'q' to quit.")
+                game.print()
+                continue
+
+            if (x_coord, y_coord) in game.get_allempty():
+                break
+            else:
+                print("That move is not valid. Please try again, or press 'q to quit.")
+
+        return move
