@@ -3,7 +3,7 @@ Reinforcement Learning agents for Hex
 
 Dependencies: names (use `!pip install names`), TrueSkill, NumPy, and Matplotlib.
 
-To make new players, use the following syntax:
+To make new players, use the following syntax (players can be humans or agents):
 
 ```
 Alice = Agent(name="Alice", searchby="alphabeta")
