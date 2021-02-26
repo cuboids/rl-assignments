@@ -702,9 +702,9 @@ class Agent:
 
         """
         graph = {key: value for (key, value) in graph.items()}  # Create a new dict to avoid the orignal one be replaced
-        shortest_distance = {}  # This is inspired by one youtbuer in the following 16 line of codes(start)
-        unseenNodes = graph
-        inf = 5000
+        shortest_distance = {}  # In the following 18 line of codes, which are derived and adjused from the Ian Sullivan(2017)(start)                     
+        unseenNodes = graph # the code source: Implementation of dijkstra in python  https://www.youtube.com/watch?v=IG1QioWSXRI&t=1s
+        inf = 5000    
         size_board = game.size
 
         for node in unseenNodes:
@@ -722,7 +722,7 @@ class Agent:
                 if distance + shortest_distance[minNode] < shortest_distance[childNode]:
                     shortest_distance[childNode] = distance + shortest_distance[minNode]
 
-            unseenNodes.pop(minNode)  # this is inspired by one youtbuer above the 16 codes(end)
+            unseenNodes.pop(minNode)  # In the upper 18 line of codes, which are derived and adjused from the Ian Sullivan(2017)(end)
 
         # In the below, all codes is to identify the smallest distnace for red/blue pieces to the two side border
         if player == HexBoard.RED:  # red is vertical
@@ -887,7 +887,7 @@ class Agent:
         score = {}
         for childnode, nodeobject in root.children.items():
             if nodeobject.visit_count == 0:
-                nodeobject.visit_count = -1000 # Assume we do not pick unexplored node
+                nodeobject.visit_count = -1000 # Assume we prefer not to pick unexplored node by assigning negative counts.
             score[childnode] = nodeobject.value_sum/nodeobject.visit_count
         return {'moves': [max(score, key= score.get)[-1]]}
 
