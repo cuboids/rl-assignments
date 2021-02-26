@@ -124,7 +124,7 @@ class Agent:
         """
         hash_digest = self.Hash(self.name.encode()).digest()
         hash_int = int.from_bytes(hash_digest, 'big')
-        return hash_int/self.MAX_HASH_PLUS_ONE + 1/(self.n_turns + 1) + self.game/10000 + self.seed
+        return hash_int % 1e7 + self.n_turns + 1e3 * self.game + self.seed
 
     def set_color(self, col):
         """Gives agent a color
@@ -176,6 +176,7 @@ class Agent:
         ax.set_xlabel('Number of games (N)')
         ax.set_ylabel('Trueskill rating')
         ax.axhline(y=25, color='r', linestyle='-', linewidth=1)
+        plt.show()
 
     def analyse_position(self, game):
         """Let the agent evaluate a position
