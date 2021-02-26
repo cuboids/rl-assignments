@@ -1,5 +1,5 @@
 from time import perf_counter
-from HexBoard import Agent, HexBoard
+from HexBoard import Agent, Human, HexBoard
 
 
 def play_hex(ngames=None, player1=Agent(name="Alice"), player2=Agent(name="Bob"), board_size=3,
@@ -88,7 +88,7 @@ def play_hex(ngames=None, player1=Agent(name="Alice"), player2=Agent(name="Bob")
             winner = player2.name
             player2.rate_1vs1(player1)
         else:
-            print('NO WINNER! Draw is impossible in Hex, please investigate.')
+            print('NO WINNER! Game terminated by user.')
             winner = None
         print('')
 
@@ -105,7 +105,7 @@ def play_hex(ngames=None, player1=Agent(name="Alice"), player2=Agent(name="Bob")
 
 example = False
 if example:
-    Alice = Agent(name='Alice', searchby='alphabetaIDTT')
-    Bob = Agent(name='Bob', searchby="alphabeta")
-    result = play_hex(1, Alice, Bob, 5, analysis=True)
-    print(result['games']['1']['nodes'])
+    Bart = Human(name="Bart")
+    Alice = Agent(name='Alice', searchby='minimax')
+    play_hex(2, Alice, Bart, 5, show_endgame=True)
+    Alice.plot_rating_history(Bart)
