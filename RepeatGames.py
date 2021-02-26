@@ -36,10 +36,10 @@ def play_hex(ngames=None, player1=Agent(name="Alice"), player2=Agent(name="Bob")
 
     print(f'{player1.name} (blue) and {player2.name} (red) will play on {board_size}x{board_size}', end=' ')
     print(f'Hex board for {ngames} round{"" if ngames == 1 else "s"}.')
-    print(f'{player1.name} and {player2.name} will move first in odd and even games respectively.')
+    print(f'{player1.name} and {player2.name} will move first in odd-numbered and even-numbered games respectively.')
     print()
 
-    # Initialize games data
+    # Initialize game results dictionary
     games_result = {'p1': player1, 'p2': player2, 'games': {}}
     player1.color, player2.color = HexBoard.BLUE, HexBoard.RED  # Let agents know their colors
     player1.seed = player2.seed = seed
@@ -59,7 +59,7 @@ def play_hex(ngames=None, player1=Agent(name="Alice"), player2=Agent(name="Bob")
         while not game.is_game_over() and n_turns < board_size ** 2:
 
             n_turns += 1
-            turn = int(n_turns % 2 != game_i % 2)
+            turn = int(n_turns % 2 != game_i % 2)  # Alternate each turn and alternate first move each game
             player1.n_turns = player2.n_turns = n_turns
             if analysis:
                 nodes[turn].append(players[turn].analyse_position(game))
@@ -82,7 +82,7 @@ def play_hex(ngames=None, player1=Agent(name="Alice"), player2=Agent(name="Bob")
         if game.check_win(1):
             print(f'Game {game_i} won by {player1.name} (blue).')
             winner = player1.name
-            player1.rate_1vs1(player2)
+            player1.rate_1vs1(player2)  # Update Trueskill rating
         elif game.check_win(2):
             print(f'Game {game_i} won by {player2.name} (red).')
             winner = player2.name
@@ -90,17 +90,20 @@ def play_hex(ngames=None, player1=Agent(name="Alice"), player2=Agent(name="Bob")
         else:
             print('NO WINNER! Draw is impossible in Hex, please investigate.')
             winner = None
+        print('')
 
         result_dict = {str(game_i): {'endstate': game, 'winner': winner, 'turns': n_turns,
                                      'elapsed_time': time_elapsed, 'nodes': nodes}}
         games_result['games'].update(result_dict)
 
     print()
-    print('All games completed.')
+    print(f'[Report] All {ngames} games completed.')
+    winners = [v['winner'] for k,v in games_result['games'].items()]
+    print(f'{player1.name} wins: {winners.count(player1.name)}, {player2.name} wins: {winners.count(player2.name)} \n')
     return games_result
 
 
-example = True
+example = False
 if example:
     Alice = Agent(name='Alice', searchby='alphabetaIDTT')
     Bob = Agent(name='Bob', searchby="alphabeta")
